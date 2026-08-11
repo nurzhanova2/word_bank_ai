@@ -34,7 +34,7 @@ Windows установщик должен создать сертификат, �
 ```
 
 Поддерживаемые действия: `rewrite`, `shorten`, `formalize`, `grammar`, `translate`,
-`expand`, `tone`. Для перевода передаётся `targetLanguage` (`ru`, `kk`, `en`),
+`expand`, `tone`, `summary`. Для перевода передаётся `targetLanguage` (`ru`, `kk`, `en`),
 для изменения тона — `targetTone` (`neutral`, `polite`, `strict`, `diplomatic`).
 Размер текста ограничен 20 000 символами.
 

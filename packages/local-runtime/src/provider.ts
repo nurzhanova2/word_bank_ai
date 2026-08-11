@@ -34,6 +34,8 @@ export class MockAiProvider implements AiProvider {
         return `${normalized} Дополнительное пояснение в демонстрационном режиме.`;
       case "tone":
         return `[${options.targetTone ?? "neutral"}] ${normalized}`;
+      case "summary":
+        return normalized.split(/(?<=[.!?])\s+/u).slice(0, 2).join(" ");
     }
 
     throw new Error("Неподдерживаемое действие.");
@@ -94,6 +96,14 @@ const actionInstructions: Record<TransformAction, string> = {
     "Задача: измени только тон текста согласно выбранному варианту.",
     "Сохрани содержание, намерение, степень обязательности, структуру и объём максимально близкими к оригиналу.",
     "Не ослабляй и не усиливай просьбы или требования. Сохрани слова, задающие срочность и срок, например «немедленно», «срочно», «до указанной даты», либо замени их только полностью равнозначными."
+  ].join(" "),
+  summary: [
+    commonInstructions,
+    "Задача: составь краткое содержание выделенного текста на языке оригинала.",
+    "Передай основную мысль, ключевые факты, решения, требования, сроки и выводы. Сохрани все числа, даты, суммы, номера документов и иные реквизиты.",
+    "Точно сохраняй связь между исполнителем и действием. Не назначай действие подразделению или лицу, если в исходнике исполнитель прямо не указан, и не объединяй соседние утверждения в новый вывод.",
+    "Для объёмного текста сократи результат ориентировочно до 30–50% исходного объёма. Для короткого текста дай одно или два ёмких предложения.",
+    "Не добавляй предположения, оценку или сведения, которых нет в исходнике. Не используй заголовок «Краткое содержание» и не поясняй свою работу."
   ].join(" ")
 };
 
@@ -132,6 +142,7 @@ function isAcceptableResult(action: TransformAction, source: string, result: str
   if (!result || !hasSameCriticalTokens(source, result)) return false;
   if (result.length > Math.max(source.length * 3, source.length + 500)) return false;
   if (action === "shorten" && source.length > 120 && result.length > source.length) return false;
+  if (action === "summary" && source.length > 300 && result.length >= source.length * 0.75) return false;
   if (action === "expand" && source.length > 40 && result.length <= source.length) return false;
   if (action === "expand" && result.length > source.length * 2 + 40) return false;
   return !/(?:<think>|Thinking Process:|^Вот (?:результат|исправленный|переработанный) текст)/iu.test(result);

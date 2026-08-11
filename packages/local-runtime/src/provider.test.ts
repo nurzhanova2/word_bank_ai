@@ -11,7 +11,8 @@ test("mock provider supports every MVP action", async () => {
     ["grammar", {}],
     ["translate", { targetLanguage: "kk" }],
     ["expand", {}],
-    ["tone", { targetTone: "polite" }]
+    ["tone", { targetTone: "polite" }],
+    ["summary", {}]
   ] as const;
 
   for (const [action, options] of cases) {

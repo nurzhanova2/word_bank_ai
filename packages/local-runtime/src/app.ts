@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { AiProvider } from "./provider.js";
 
 const transformSchema = z.object({
-  action: z.enum(["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone"]),
+  action: z.enum(["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone", "summary"]),
   text: z.string().trim().min(1).max(20_000),
   targetLanguage: z.enum(["ru", "kk", "en"]).optional(),
   targetTone: z.enum(["neutral", "polite", "strict", "diplomatic"]).optional()

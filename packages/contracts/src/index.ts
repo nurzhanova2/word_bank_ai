@@ -1,4 +1,4 @@
-export const transformActions = ["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone"] as const;
+export const transformActions = ["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone", "summary"] as const;
 
 export type TransformAction = (typeof transformActions)[number];
 
