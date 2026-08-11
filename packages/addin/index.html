@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bank AI</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <span class="eyebrow">WORD ASSISTANT</span>
+        <h1>Bank AI</h1>
+        <p>Выделите текст в документе и выберите действие.</p>
+      </header>
+
+      <section class="actions" aria-label="AI-действия">
+        <button data-action="rewrite">Переписать</button>
+        <button data-action="shorten">Сократить</button>
+        <button data-action="formalize">Формальный стиль</button>
+      </section>
+
+      <p id="status" class="status" role="status">Подключение к Word…</p>
+
+      <section id="preview" class="preview" hidden>
+        <div>
+          <h2>Было</h2>
+          <p id="original"></p>
+        </div>
+        <div>
+          <h2>Стало</h2>
+          <p id="result"></p>
+        </div>
+        <div class="decision-row">
+          <button id="reject" class="secondary">Отклонить</button>
+          <button id="accept">Применить</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+:root {
+  font-family: Inter, "Segoe UI", sans-serif;
+  color: #17211b;
+  background: #f5f7f5;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+button { font: inherit; }
+
+.shell { padding: 24px 18px 40px; }
+.eyebrow { color: #29734d; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+h1 { margin: 6px 0; font-size: 28px; }
+header p { margin: 0; color: #607067; line-height: 1.5; }
+.actions { display: grid; gap: 8px; margin: 24px 0 16px; }
+button { border: 0; border-radius: 8px; padding: 11px 14px; color: white; background: #176b43; cursor: pointer; }
+button:hover { background: #0f5735; }
+button:disabled { cursor: wait; opacity: .55; }
+.secondary { color: #26362d; background: #e5ebe7; }
+.secondary:hover { background: #d8e1db; }
+.status { min-height: 22px; color: #607067; font-size: 13px; }
+.status.error { color: #a52a2a; }
+.preview { display: grid; gap: 12px; margin-top: 18px; }
+.preview > div:not(.decision-row) { padding: 14px; border: 1px solid #dce4df; border-radius: 10px; background: white; }
+.preview h2 { margin: 0 0 8px; color: #607067; font-size: 12px; text-transform: uppercase; }
+.preview p { margin: 0; white-space: pre-wrap; line-height: 1.55; }
+.decision-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

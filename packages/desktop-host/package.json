@@ -1,0 +1,70 @@
+{
+  "name": "@bank-ai/desktop-host",
+  "version": "0.1.0",
+  "description": "Локальный Windows host для Bank AI Word Add-in",
+  "author": "Bank AI",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "npm run build && electron .",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "@bank-ai/local-runtime": "0.1.0",
+    "dotenv": "^17.2.1",
+    "office-addin-dev-certs": "^2.0.10"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "electron": "43.3.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.2"
+  },
+  "build": {
+    "appId": "kz.bankai.word",
+    "productName": "Bank AI for Word",
+    "artifactName": "BankAI-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../addin/dist",
+        "to": "addin"
+      },
+      {
+        "from": "../addin/manifest.xml",
+        "to": "manifest.xml"
+      },
+      {
+        "from": "assets/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/office-addin-dev-certs/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "assets/installer.nsh"
+    }
+  }
+}
