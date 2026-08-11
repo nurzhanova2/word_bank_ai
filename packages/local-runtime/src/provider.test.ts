@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createProvider, MockAiProvider } from "./provider.js";
+import { createProvider, isAcceptableResult, MockAiProvider } from "./provider.js";
 
 test("mock provider supports every MVP action", async () => {
   const provider = new MockAiProvider();
@@ -47,4 +47,14 @@ test("LiteLLM provider reads the corporate LLM configuration", () => {
       else process.env[name] = value;
     }
   }
+});
+
+test("summary may omit secondary numbers but cannot alter or invent them", () => {
+  const source = "Договор № 417 от 10.08.2026 на сумму 125 000 тенге. Приложение содержит 8 страниц.";
+  assert.equal(
+    isAcceptableResult("summary", source, "Договор № 417 от 10.08.2026 заключён на сумму 125 000 тенге."),
+    true
+  );
+  assert.equal(isAcceptableResult("summary", source, "Договор № 999 заключён."), false);
+  assert.equal(isAcceptableResult("rewrite", source, "Договор № 417 заключён."), false);
 });

@@ -100,7 +100,8 @@ const actionInstructions: Record<TransformAction, string> = {
   summary: [
     commonInstructions,
     "Задача: составь краткое содержание выделенного текста на языке оригинала.",
-    "Передай основную мысль, ключевые факты, решения, требования, сроки и выводы. Сохрани все числа, даты, суммы, номера документов и иные реквизиты.",
+    "Передай основную мысль, ключевые факты, решения, требования, сроки и выводы.",
+    "Сохрани без изменений числа, даты, суммы, номера документов и реквизиты, относящиеся к ключевым фактам. Второстепенные детали можно опустить, но нельзя изменять сохранённые значения или добавлять новые.",
     "Точно сохраняй связь между исполнителем и действием. Не назначай действие подразделению или лицу, если в исходнике исполнитель прямо не указан, и не объединяй соседние утверждения в новый вывод.",
     "Для объёмного текста сократи результат ориентировочно до 30–50% исходного объёма. Для короткого текста дай одно или два ёмких предложения.",
     "Не добавляй предположения, оценку или сведения, которых нет в исходнике. Не используй заголовок «Краткое содержание» и не поясняй свою работу."
@@ -138,8 +139,22 @@ function hasSameCriticalTokens(source: string, result: string): boolean {
   return JSON.stringify(criticalTokens(source)) === JSON.stringify(criticalTokens(result));
 }
 
-function isAcceptableResult(action: TransformAction, source: string, result: string): boolean {
-  if (!result || !hasSameCriticalTokens(source, result)) return false;
+function hasOnlySourceCriticalTokens(source: string, result: string): boolean {
+  const available = new Map<string, number>();
+  for (const token of criticalTokens(source)) available.set(token, (available.get(token) ?? 0) + 1);
+  for (const token of criticalTokens(result)) {
+    const remaining = available.get(token) ?? 0;
+    if (remaining === 0) return false;
+    available.set(token, remaining - 1);
+  }
+  return true;
+}
+
+export function isAcceptableResult(action: TransformAction, source: string, result: string): boolean {
+  if (!result) return false;
+  if (action === "summary") {
+    if (!hasOnlySourceCriticalTokens(source, result)) return false;
+  } else if (!hasSameCriticalTokens(source, result)) return false;
   if (result.length > Math.max(source.length * 3, source.length + 500)) return false;
   if (action === "shorten" && source.length > 120 && result.length > source.length) return false;
   if (action === "summary" && source.length > 300 && result.length >= source.length * 0.75) return false;
@@ -171,14 +186,18 @@ export class OpenAiProvider implements AiProvider {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const correction = attempt === 0
         ? ""
-        : "Предыдущий ответ был отклонён из-за изменения критических данных. Выполни задачу заново и строго соблюдай все ограничения.";
+        : action === "summary"
+          ? "Предыдущее краткое содержание не прошло проверку. Сделай его короче, не изменяй сохранённые числовые данные и не добавляй новые."
+          : "Предыдущий ответ был отклонён из-за изменения критических данных. Выполни задачу заново и строго соблюдай все ограничения.";
       const userMessage = action === "grammar"
         ? [correction, text].filter(Boolean).join("\n\n")
         : [
             correction,
             modeInstruction,
             tokens.length > 0
-              ? `Обязательно сохрани каждый из этих числовых фрагментов без изменений и не добавляй другие: ${tokens.join(", ")}.`
+              ? action === "summary"
+                ? `Числовые фрагменты исходника: ${tokens.join(", ")}. Оставь относящиеся к ключевым фактам без изменений; второстепенные можно опустить. Не добавляй другие числа.`
+                : `Обязательно сохрани каждый из этих числовых фрагментов без изменений и не добавляй другие: ${tokens.join(", ")}.`
               : "Не добавляй числовые данные, которых нет в оригинале.",
             "Редактируй только содержимое между тегами <source> и </source>. Не включай теги в ответ.",
             `<source>\n${text}\n</source>`
@@ -189,7 +208,7 @@ export class OpenAiProvider implements AiProvider {
           { role: "system", content: actionInstructions[action] },
           { role: "user", content: userMessage }
         ],
-        max_tokens: 2_000,
+        max_tokens: action === "summary" ? 3_500 : 2_000,
         temperature: 0,
         chat_template_kwargs: { enable_thinking: false }
       } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
