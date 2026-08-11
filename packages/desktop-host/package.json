@@ -46,6 +46,10 @@
       {
         "from": "assets/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "assets/settings-preload.cjs",
+        "to": "settings-preload.cjs"
       }
     ],
     "asarUnpack": [
