@@ -22,6 +22,7 @@ const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 
 let pendingResult = "";
 let pendingAction: TransformAction | undefined;
+let pendingSourceOoxml = "";
 
 function renderHighlightedResult(source: string, result: string): void {
   const resultWords = wordTokens(result);
@@ -46,6 +47,7 @@ function renderHighlightedResult(source: string, result: string): void {
 function resetPreview(): void {
   pendingResult = "";
   pendingAction = undefined;
+  pendingSourceOoxml = "";
   originalElement.textContent = "";
   resultElement.textContent = "";
   previewElement.hidden = false;
@@ -85,7 +87,8 @@ async function transform(action: TransformAction): Promise<void> {
     setBusy(true);
     resetPreview();
     setStatus("Обрабатываем выделенный текст…");
-    const text = await word.getSelectedText();
+    const selection = await word.getSelectedContent();
+    const text = selection.text;
     if (!text) throw new Error("Сначала выделите текст в документе Word.");
 
     const payload: TransformRequest = { action, text };
@@ -97,6 +100,7 @@ async function transform(action: TransformAction): Promise<void> {
     const response = await transformText(payload);
     pendingResult = response.result;
     pendingAction = action;
+    pendingSourceOoxml = selection.ooxml;
     originalElement.textContent = text;
     const prefix = getActionDefinition(action).resultPrefix;
     renderHighlightedResult(text, prefix ? `${prefix} ${response.result}` : response.result);
@@ -120,7 +124,7 @@ acceptButton.addEventListener("click", async () => {
     setBusy(true);
     const definition = getActionDefinition(pendingAction);
     if (definition.applyMode === "append") await word.appendAfterSelection(pendingResult, definition.resultPrefix);
-    else await word.replaceSelection(pendingResult);
+    else await word.replaceSelection(pendingResult, pendingSourceOoxml);
     const appliedMode = definition.applyMode;
     resetPreview();
     setStatus(appliedMode === "append" ? "Результат добавлен после выделенного текста." : "Изменение применено к документу.");

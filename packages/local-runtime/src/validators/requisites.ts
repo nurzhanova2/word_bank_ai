@@ -1,6 +1,19 @@
+export type RequisiteKind =
+  | "url"
+  | "email"
+  | "organization"
+  | "person-name"
+  | "business-id"
+  | "iban"
+  | "bic"
+  | "account"
+  | "phone"
+  | "number";
+
 export interface ProtectedRequisite {
   placeholder: string;
   value: string;
+  kind: RequisiteKind;
 }
 
 export interface RequisiteProtection {
@@ -12,17 +25,75 @@ export interface RestoreOptions {
   requireAll: boolean;
 }
 
+interface RequisiteMatch {
+  start: number;
+  end: number;
+  value: string;
+  kind: RequisiteKind;
+  priority: number;
+}
+
 const placeholderPattern = /⟦BANKAI_[A-Z]+⟧/gu;
-const emailPattern = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/giu;
-const urlPattern = /https?:\/\/[^\s<>"']+/giu;
+
+const directPatterns: readonly { kind: RequisiteKind; pattern: RegExp; priority: number }[] = [
+  { kind: "url", pattern: /https?:\/\/[^\s<>"']+/giu, priority: 100 },
+  { kind: "email", pattern: /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/giu, priority: 100 },
+  { kind: "organization", pattern: /(?:ТОО|АО|ОАО|ЗАО|ИП)\s+(?:[«"][^»"\r\n]{1,120}[»"]|[\p{Lu}][\p{L}-]*(?:\s+[\p{Lu}][\p{L}-]*){0,4})/gu, priority: 95 },
+  { kind: "iban", pattern: /\bKZ\d{2}[A-Z0-9]{16}\b/giu, priority: 90 },
+  { kind: "phone", pattern: /(?<!\d)(?:\+7|8)[\s-]*\(?\d{3}\)?[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)/gu, priority: 90 }
+];
+
+const labeledPatterns: readonly { kind: RequisiteKind; pattern: RegExp; priority: number }[] = [
+  { kind: "person-name", pattern: /(?:ФИО|Ф\.\s*И\.\s*О\.)\s*:\s*(?<value>[\p{Lu}][\p{Ll}-]+(?:\s+[\p{Lu}][\p{Ll}-]+){1,2})/gu, priority: 90 },
+  { kind: "business-id", pattern: /(?:ИИН|БИН)\s*[:№]?\s*(?<value>\d{12})\b/giu, priority: 90 },
+  { kind: "bic", pattern: /БИК\s*[:№]?\s*(?<value>[A-Z]{8}(?:[A-Z0-9]{3})?)\b/giu, priority: 90 },
+  { kind: "account", pattern: /(?:ИИК|сч[её]т|р\/с)\s*[:№]?\s*(?<value>(?!KZ)[A-Z0-9]{10,34})\b/giu, priority: 85 }
+];
+
 const numberPattern = /\d+(?:[.,:/-]\d+)*/gu;
-const unprotectedNumberPattern = /\d+(?:[.,:/-]\d+)*/u;
-const unprotectedEmailPattern = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/iu;
-const unprotectedUrlPattern = /https?:\/\/[^\s<>"']+/iu;
-const requisitePattern = new RegExp(
-  `${urlPattern.source}|${emailPattern.source}|${numberPattern.source}`,
-  "giu"
-);
+
+function collectMatches(text: string): RequisiteMatch[] {
+  const candidates: RequisiteMatch[] = [];
+  for (const definition of directPatterns) {
+    for (const match of text.matchAll(definition.pattern)) {
+      if (match.index === undefined) continue;
+      candidates.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        value: match[0],
+        kind: definition.kind,
+        priority: definition.priority
+      });
+    }
+  }
+  for (const definition of labeledPatterns) {
+    for (const match of text.matchAll(definition.pattern)) {
+      const value = match.groups?.value;
+      if (match.index === undefined || !value) continue;
+      const offset = match[0].lastIndexOf(value);
+      const start = match.index + offset;
+      candidates.push({ start, end: start + value.length, value, kind: definition.kind, priority: definition.priority });
+    }
+  }
+  for (const match of text.matchAll(numberPattern)) {
+    if (match.index === undefined) continue;
+    candidates.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      value: match[0],
+      kind: "number",
+      priority: 1
+    });
+  }
+
+  candidates.sort((left, right) => left.start - right.start || right.priority - left.priority || right.end - left.end);
+  const accepted: RequisiteMatch[] = [];
+  for (const candidate of candidates) {
+    if (accepted.some((item) => candidate.start < item.end && candidate.end > item.start)) continue;
+    accepted.push(candidate);
+  }
+  return accepted.sort((left, right) => left.start - right.start);
+}
 
 function alphabeticId(index: number): string {
   let value = index + 1;
@@ -37,11 +108,15 @@ function alphabeticId(index: number): string {
 
 export function protectRequisites(text: string): RequisiteProtection {
   const entries: ProtectedRequisite[] = [];
-  const protectedText = text.replace(requisitePattern, (value) => {
+  let cursor = 0;
+  let protectedText = "";
+  for (const match of collectMatches(text)) {
     const placeholder = `⟦BANKAI_${alphabeticId(entries.length)}⟧`;
-    entries.push({ placeholder, value });
-    return placeholder;
-  });
+    protectedText += text.slice(cursor, match.start) + placeholder;
+    entries.push({ placeholder, value: match.value, kind: match.kind });
+    cursor = match.end;
+  }
+  protectedText += text.slice(cursor);
   return { protectedText, entries };
 }
 
@@ -50,10 +125,7 @@ function countOccurrences(text: string, value: string): number {
 }
 
 function containsUnprotectedRequisite(text: string): boolean {
-  const withoutPlaceholders = text.replace(placeholderPattern, "");
-  return unprotectedNumberPattern.test(withoutPlaceholders)
-    || unprotectedEmailPattern.test(withoutPlaceholders)
-    || unprotectedUrlPattern.test(withoutPlaceholders);
+  return collectMatches(text.replace(placeholderPattern, "")).length > 0;
 }
 
 export function restoreProtectedResult(
@@ -61,9 +133,7 @@ export function restoreProtectedResult(
   result: string,
   options: RestoreOptions
 ): string {
-  if (containsUnprotectedRequisite(result)) {
-    throw new Error("LLM added an unprotected requisite.");
-  }
+  if (containsUnprotectedRequisite(result)) throw new Error("LLM added an unprotected requisite.");
 
   const known = new Map(protection.entries.map((entry) => [entry.placeholder, entry]));
   for (const placeholder of result.match(placeholderPattern) ?? []) {

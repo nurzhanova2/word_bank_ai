@@ -1,24 +1,32 @@
+import { replaceParagraphTextInOoxml } from "./formatted-ooxml.js";
+
 export interface WordAdapter {
-  getSelectedText(): Promise<string>;
-  replaceSelection(text: string): Promise<void>;
+  getSelectedContent(): Promise<{ text: string; ooxml: string }>;
+  replaceSelection(text: string, sourceOoxml?: string): Promise<void>;
   appendAfterSelection(text: string, prefix?: string): Promise<void>;
 }
 
 export class OfficeWordAdapter implements WordAdapter {
-  async getSelectedText(): Promise<string> {
+  async getSelectedContent(): Promise<{ text: string; ooxml: string }> {
     return Word.run(async (context) => {
       const range = context.document.getSelection();
       range.load("text");
+      const ooxml = range.getOoxml();
       await context.sync();
-      return range.text.trim();
+      return { text: range.text.trim(), ooxml: ooxml.value };
     });
   }
 
-  async replaceSelection(text: string): Promise<void> {
+  async replaceSelection(text: string, sourceOoxml?: string): Promise<void> {
     await Word.run(async (context) => {
       const range = context.document.getSelection();
-      range.insertText(text, Word.InsertLocation.replace);
-      range.select();
+      const formattedOoxml = sourceOoxml
+        ? replaceParagraphTextInOoxml(sourceOoxml, text)
+        : undefined;
+      const insertedRange = formattedOoxml
+        ? range.insertOoxml(formattedOoxml, Word.InsertLocation.replace)
+        : range.insertText(text, Word.InsertLocation.replace);
+      insertedRange.select();
       await context.sync();
     });
   }
