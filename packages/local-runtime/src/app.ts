@@ -13,6 +13,7 @@ import cors from "cors";
 import express from "express";
 import { z } from "zod";
 import type { AiProvider } from "./provider.js";
+import { toApiFailure } from "./errors.js";
 
 const transformSchema = z.object({
   action: z.enum(transformActions as [TransformAction, ...TransformAction[]]),
@@ -42,10 +43,16 @@ export function createApp(provider: AiProvider, staticDirectory?: string) {
   });
 
   app.post("/api/v1/transform", async (request, response) => {
+    const operationId = crypto.randomUUID();
     const parsed = transformSchema.safeParse(request.body);
     if (!parsed.success) {
       const body: ApiError = {
-        error: { code: "INVALID_REQUEST", message: "Выберите действие и текст длиной до 20 000 символов." }
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Выберите действие и текст длиной до 20 000 символов.",
+          retryable: false,
+          operationId
+        }
       };
       response.status(400).json(body);
       return;
@@ -58,17 +65,16 @@ export function createApp(provider: AiProvider, staticDirectory?: string) {
         targetTone: parsed.data.targetTone
       });
       const body: TransformResponse = {
-        operationId: crypto.randomUUID(),
+        operationId,
         result,
         provider: provider.name,
         durationMs: Math.round(performance.now() - startedAt)
       };
       response.json(body);
-    } catch {
-      const body: ApiError = {
-        error: { code: "PROVIDER_ERROR", message: "AI-сервис временно недоступен. Повторите попытку." }
-      };
-      response.status(502).json(body);
+    } catch (error) {
+      const failure = toApiFailure(error, operationId);
+      console.error(`[Bank AI] operation=${operationId} code=${failure.body.error.code}`);
+      response.status(failure.status).json(failure.body);
     }
   });
 

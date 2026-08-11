@@ -1,16 +1,10 @@
 import type { TransformAction, TransformOptions } from "@bank-ai/contracts";
+import { ResultValidationError } from "../errors.js";
 import { optionInstruction } from "../actions/options.js";
 import { actionPrompts } from "../actions/prompts.js";
 import type { AiProvider, CompletionProvider } from "../providers/types.js";
 import { protectRequisites, restoreProtectedResult } from "../validators/requisites.js";
 import { isAcceptableResult } from "../validators/result.js";
-
-export class ResultValidationError extends Error {
-  constructor() {
-    super("LLM изменила защищённые данные или вернула некорректный результат.");
-    this.name = "ResultValidationError";
-  }
-}
 
 export class TransformService implements AiProvider {
   readonly name: string;

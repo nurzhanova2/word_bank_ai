@@ -20,11 +20,14 @@
 - [x] Разделение AI-слоя на actions, providers, services и validators.
 - [x] Маскирование чисел, дат, email и URL до отправки в LLM с точным восстановлением после ответа.
 - [x] TDD-набор для реестра, реквизитов, retry и orchestration pipeline.
+- [x] Word Add-in разделён на API client, WordAdapter, diff, UI renderer и controller.
+- [x] Desktop Host разделён на ConfigService, RuntimeManager, WordAddInInstaller и settings IPC.
+- [x] Типизированные безопасные ошибки с HTTP-статусом, `retryable` и `operationId`.
 
 ## Проверки текущего релиза
 
 - [x] TypeScript typecheck всех пакетов.
-- [x] Автоматические тесты локального провайдера.
+- [x] 22 автоматических теста Add-in, Desktop Host и локального runtime.
 - [x] Проверка новых режимов через API установленного EXE на корпоративной Qwen.
 - [ ] Визуальная приёмка новых карточек непосредственно в панели Word.
 

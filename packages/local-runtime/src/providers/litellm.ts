@@ -1,4 +1,10 @@
 import OpenAI from "openai";
+import {
+  ProviderAuthenticationError,
+  ProviderRateLimitError,
+  ProviderTimeoutError,
+  ProviderUnavailableError
+} from "../errors.js";
 import type { CompletionProvider, CompletionRequest } from "./types.js";
 
 export class LiteLlmCompletionProvider implements CompletionProvider {
@@ -28,8 +34,16 @@ export class LiteLlmCompletionProvider implements CompletionProvider {
       temperature: 0,
       chat_template_kwargs: { enable_thinking: false }
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
-    const response = await this.client.chat.completions.create(request);
-    const content = response.choices[0]?.message.content;
-    return typeof content === "string" ? content.trim() : "";
+    try {
+      const response = await this.client.chat.completions.create(request);
+      const content = response.choices[0]?.message.content;
+      return typeof content === "string" ? content.trim() : "";
+    } catch (error) {
+      if (error instanceof OpenAI.AuthenticationError) throw new ProviderAuthenticationError();
+      if (error instanceof OpenAI.RateLimitError) throw new ProviderRateLimitError();
+      if (error instanceof OpenAI.APIConnectionTimeoutError) throw new ProviderTimeoutError();
+      if (error instanceof OpenAI.APIConnectionError) throw new ProviderUnavailableError();
+      throw error;
+    }
   }
 }

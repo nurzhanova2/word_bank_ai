@@ -5,6 +5,7 @@ import test from "node:test";
 import { actionDefinitions } from "@bank-ai/contracts";
 import { createApp } from "./app.js";
 import { MockAiProvider } from "./provider.js";
+import { ProviderAuthenticationError, ResultValidationError } from "./errors.js";
 
 test("API accepts every action declared in the shared registry", async () => {
   const server = createApp(new MockAiProvider()).listen(0, "127.0.0.1");
@@ -29,5 +30,33 @@ test("API accepts every action declared in the shared registry", async () => {
     }
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("API exposes typed safe provider errors with an operation ID", async () => {
+  for (const [providerError, expectedStatus, expectedCode] of [
+    [new ProviderAuthenticationError(), 401, "INVALID_API_KEY"],
+    [new ResultValidationError(), 422, "RESULT_VALIDATION_FAILED"]
+  ] as const) {
+    const provider = {
+      name: "failing",
+      async transform() { throw providerError; }
+    };
+    const server = createApp(provider).listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const response = await fetch(`http://127.0.0.1:${port}/api/v1/transform`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "rewrite", text: "Текст" })
+      });
+      const body = await response.json() as { error: { code: string; operationId?: string } };
+      assert.equal(response.status, expectedStatus);
+      assert.equal(body.error.code, expectedCode);
+      assert.ok(body.error.operationId);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
   }
 });

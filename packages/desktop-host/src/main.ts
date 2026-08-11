@@ -1,13 +1,7 @@
-import fs from "node:fs";
-import https from "node:https";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { createApp } from "@bank-ai/local-runtime/app";
-import { getLocalHttpsOptions } from "@bank-ai/local-runtime/https-options";
-import { createProvider, MockAiProvider, OpenAiProvider } from "@bank-ai/local-runtime/provider";
-import { config as loadEnvironment, parse as parseEnvironment } from "dotenv";
 import {
   app,
   BrowserWindow,
@@ -19,109 +13,42 @@ import {
   shell,
   Tray
 } from "electron";
+import { registerSettingsIpc } from "./ipc/settings-ipc.js";
+import { ConfigService } from "./services/config-service.js";
+import { RuntimeManager, type RuntimeState } from "./services/runtime-manager.js";
+import { WordAddInInstaller } from "./services/word-addin-installer.js";
 import { settingsPage } from "./settings-page.js";
 
 const PORT = 3847;
-const HOST = "127.0.0.1";
 const ADD_IN_ID = "f5212ec9-4a1a-4ca7-a195-6fbcd8f7822e";
-const OFFICE_DEVELOPER_KEY = "HKCU\\SOFTWARE\\Microsoft\\Office\\16.0\\Wef\\Developer";
 const execFileAsync = promisify(execFile);
 
 let tray: Tray | undefined;
-let server: https.Server | undefined;
 let settingsWindow: BrowserWindow | undefined;
-let runtimeStatus = "Запускается…";
-let providerStatus = "не определён";
+let runtime: RuntimeManager | undefined;
+let wordInstaller: WordAddInInstaller | undefined;
 
-function addinPath(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "addin")
-    : path.resolve(app.getAppPath(), "../addin/dist");
+function resourcePath(packagedName: string, developmentPath: string): string {
+  return app.isPackaged ? path.join(process.resourcesPath, packagedName) : path.resolve(app.getAppPath(), developmentPath);
 }
-
-function manifestPath(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "manifest.xml")
-    : path.resolve(app.getAppPath(), "../addin/manifest.xml");
-}
-
-function iconPath(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "icon.png")
-    : path.resolve(app.getAppPath(), "assets/icon.png");
-}
-
+function addinPath(): string { return resourcePath("addin", "../addin/dist"); }
+function manifestPath(): string { return resourcePath("manifest.xml", "../addin/manifest.xml"); }
+function iconPath(): string { return resourcePath("icon.png", "assets/icon.png"); }
 function settingsPreloadPath(): string {
   return app.isPackaged
     ? path.join(process.resourcesPath, "settings-preload.cjs")
     : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../assets/settings-preload.cjs");
 }
-
 function configPath(): string {
-  return app.isPackaged
-    ? path.join(app.getPath("userData"), ".env")
-    : path.resolve(app.getAppPath(), "../../.env");
+  return app.isPackaged ? path.join(app.getPath("userData"), ".env") : path.resolve(app.getAppPath(), "../../.env");
 }
 
-function ensureConfigFile(): void {
-  const target = configPath();
-  if (fs.existsSync(target)) return;
-
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(
-    target,
-    [
-      "BANK_AI_PROVIDER=litellm",
-      "LLM_API_KEY=",
-      "LLM_API_BASE=https://prod-litellm.nationalbank.kz",
-      "LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8",
-      ""
-    ].join("\n"),
-    { encoding: "utf8", mode: 0o600 }
-  );
-}
-
-function loadConfig(): void {
-  ensureConfigFile();
-  loadEnvironment({ path: configPath(), override: true, quiet: true });
-}
-
-function readSettings(): { apiKey: string; apiBase: string; model: string } {
-  ensureConfigFile();
-  const values = parseEnvironment(fs.readFileSync(configPath(), "utf8"));
-  return {
-    apiKey: values.LLM_API_KEY?.trim() ?? "",
-    apiBase: values.LLM_API_BASE?.trim() || "https://prod-litellm.nationalbank.kz",
-    model: values.LLM_MODEL?.trim() || "Qwen/Qwen3.5-35B-A3B-FP8"
-  };
-}
-
-function quoteEnvironmentValue(value: string): string {
-  return JSON.stringify(value);
-}
-
-function writeSettings(settings: { apiKey: string; apiBase: string; model: string }): void {
-  fs.writeFileSync(
-    configPath(),
-    [
-      "BANK_AI_PORT=3847",
-      "BANK_AI_PROVIDER=litellm",
-      `LLM_API_KEY=${quoteEnvironmentValue(settings.apiKey)}`,
-      `LLM_API_BASE=${quoteEnvironmentValue(settings.apiBase)}`,
-      `LLM_MODEL=${quoteEnvironmentValue(settings.model)}`,
-      ""
-    ].join("\n"),
-    { encoding: "utf8", mode: 0o600 }
-  );
-}
-
-async function openConfig(): Promise<void> {
+async function openSettings(): Promise<void> {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show();
     settingsWindow.focus();
     return;
   }
-
   settingsWindow = new BrowserWindow({
     width: 520,
     height: 650,
@@ -131,11 +58,7 @@ async function openConfig(): Promise<void> {
     icon: iconPath(),
     autoHideMenuBar: true,
     backgroundColor: "#f7faf8",
-    webPreferences: {
-      preload: settingsPreloadPath(),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
+    webPreferences: { preload: settingsPreloadPath(), contextIsolation: true, nodeIntegration: false }
   });
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   settingsWindow.webContents.on("will-navigate", (event) => event.preventDefault());
@@ -143,115 +66,36 @@ async function openConfig(): Promise<void> {
   await settingsWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(settingsPage)}`);
 }
 
-function updateTrayMenu(): void {
+function updateTrayMenu(state: RuntimeState = runtime?.state ?? { status: "остановлен", provider: "не определён" }): void {
   if (!tray) return;
-
-  tray.setToolTip(`Bank AI for Word — ${runtimeStatus}`);
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: `Статус: ${runtimeStatus}`, enabled: false },
-      { label: `AI: ${providerStatus}`, enabled: false },
-      { type: "separator" },
-      {
-        label: "Установить дополнение в Word",
-        click: () => void installWordAddIn()
-      },
-      {
-        label: "Удалить дополнение из Word",
-        click: () => void removeWordAddIn()
-      },
-      {
-        label: "Открыть настройки",
-        click: () => void openConfig()
-      },
-      {
-        label: "Открыть диагностику",
-        enabled: runtimeStatus === "работает",
-        click: () => void shell.openExternal(`https://localhost:${PORT}/health`)
-      },
-      {
-        label: "Скопировать путь к manifest.xml",
-        click: () => clipboard.writeText(manifestPath())
-      },
-      { type: "separator" },
-      {
-        label: "Перезапустить Bank AI",
-        click: () => {
-          app.relaunch();
-          app.exit(0);
-        }
-      },
-      { label: "Выход", click: () => app.quit() }
-    ])
-  );
-}
-
-async function findWordExecutable(): Promise<string | undefined> {
-  const registryKeys = [
-    "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Winword.exe",
-    "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Winword.exe"
-  ];
-
-  for (const registryKey of registryKeys) {
-    try {
-      const { stdout } = await execFileAsync("reg.exe", ["query", registryKey, "/ve"]);
-      const executable = stdout.match(/REG_SZ\s+([^\r\n]*WINWORD\.EXE)\s*$/imu)?.[1]?.trim();
-      if (executable && fs.existsSync(executable)) return executable;
-    } catch {
-      // Проверяем следующий источник пути.
-    }
-  }
-
-  const programDirectories = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean) as string[];
-  for (const directory of programDirectories) {
-    const candidate = path.join(directory, "Microsoft Office", "Root", "Office16", "WINWORD.EXE");
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return undefined;
-}
-
-async function launchWord(): Promise<boolean> {
-  const executable = await findWordExecutable();
-  if (!executable) return false;
-  try {
-    return (await shell.openPath(executable)) === "";
-  } catch {
-    return false;
-  }
+  tray.setToolTip(`Bank AI for Word — ${state.status}`);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: `Статус: ${state.status}`, enabled: false },
+    { label: `AI: ${state.provider}`, enabled: false },
+    { type: "separator" },
+    { label: "Установить дополнение в Word", click: () => void installWordAddIn() },
+    { label: "Удалить дополнение из Word", click: () => void removeWordAddIn() },
+    { label: "Открыть настройки", click: () => void openSettings() },
+    {
+      label: "Открыть диагностику",
+      enabled: state.status === "работает",
+      click: () => void shell.openExternal(`https://localhost:${PORT}/health`)
+    },
+    { label: "Скопировать путь к manifest.xml", click: () => clipboard.writeText(manifestPath()) },
+    { type: "separator" },
+    { label: "Перезапустить Bank AI", click: () => { app.relaunch(); app.exit(0); } },
+    { label: "Выход", click: () => app.quit() }
+  ]));
 }
 
 async function installWordAddIn(): Promise<void> {
-  if (process.platform !== "win32") {
-    await dialog.showMessageBox({
-      type: "info",
-      title: "Bank AI for Word",
-      message: "Автоматическая установка предназначена для Windows.",
-      detail: `Manifest: ${manifestPath()}`
-    });
-    return;
-  }
-
+  if (process.platform !== "win32" || !wordInstaller) return;
   try {
-    await execFileAsync("reg.exe", [
-      "add",
-      OFFICE_DEVELOPER_KEY,
-      "/v",
-      ADD_IN_ID,
-      "/t",
-      "REG_SZ",
-      "/d",
-      manifestPath(),
-      "/f"
-    ]);
-
-    const wordOpened = await launchWord();
-
+    const { wordOpened } = await wordInstaller.install(manifestPath(), ADD_IN_ID);
     await dialog.showMessageBox({
       type: "info",
       title: "Bank AI установлен",
-      message: wordOpened
-        ? "Дополнение зарегистрировано. Word открыт автоматически."
-        : "Дополнение зарегистрировано. Откройте Word вручную.",
+      message: wordOpened ? "Дополнение зарегистрировано. Word открыт автоматически." : "Дополнение зарегистрировано. Откройте Word вручную.",
       detail: "В Word откройте Главная → Дополнения → Bank AI."
     });
   } catch (error) {
@@ -259,163 +103,65 @@ async function installWordAddIn(): Promise<void> {
       type: "error",
       title: "Не удалось установить дополнение",
       message: error instanceof Error ? error.message : "Неизвестная ошибка.",
-      detail: "Попробуйте закрыть Word, запустить Bank AI от имени администратора или передать manifest IT-администратору."
+      detail: "Закройте Word или обратитесь к IT-администратору."
     });
   }
 }
 
 async function removeWordAddIn(): Promise<void> {
-  if (process.platform !== "win32") return;
-
+  if (process.platform !== "win32" || !wordInstaller) return;
   try {
-    await execFileAsync("reg.exe", [
-      "delete",
-      OFFICE_DEVELOPER_KEY,
-      "/v",
-      ADD_IN_ID,
-      "/f"
-    ]);
-    await dialog.showMessageBox({
-      type: "info",
-      title: "Bank AI удалён из Word",
-      message: "Регистрация дополнения удалена.",
-      detail: "Полностью закройте и повторно откройте Word."
-    });
+    await wordInstaller.remove(ADD_IN_ID);
+    await dialog.showMessageBox({ type: "info", title: "Bank AI удалён из Word", message: "Регистрация дополнения удалена." });
   } catch (error) {
-    await dialog.showMessageBox({
-      type: "warning",
-      title: "Не удалось удалить регистрацию",
-      message: error instanceof Error ? error.message : "Неизвестная ошибка."
-    });
+    await dialog.showMessageBox({ type: "warning", title: "Не удалось удалить регистрацию", message: error instanceof Error ? error.message : "Неизвестная ошибка." });
   }
 }
 
-async function startRuntime(): Promise<void> {
-  runtimeStatus = "запускается…";
-  updateTrayMenu();
-
-  loadConfig();
-
-  let provider;
-  try {
-    provider = createProvider();
-    providerStatus = provider.name;
-  } catch (error) {
-    provider = new MockAiProvider();
-    providerStatus = "mock — заполните LLM_API_KEY";
+async function showStartupProblems(state: RuntimeState): Promise<void> {
+  if (state.configurationError) {
     await dialog.showMessageBox({
       type: "warning",
       title: "Нужно настроить LLM API",
-      message: error instanceof Error ? error.message : "Проверьте настройки AI.",
-      detail: `Откройте настройки из меню Bank AI. Пока включён демонстрационный mock-режим.\n\n${configPath()}`
+      message: state.configurationError.message,
+      detail: "Пока включён демонстрационный mock-режим."
     });
-    await openConfig();
+    await openSettings();
   }
-
-  try {
-    const options = await getLocalHttpsOptions();
-    server = https.createServer(options, createApp(provider, addinPath()));
-    await new Promise<void>((resolve, reject) => {
-      server!.once("error", reject);
-      server!.listen(PORT, HOST, resolve);
-    });
-    runtimeStatus = "работает";
-  } catch (error) {
-    runtimeStatus = "ошибка запуска";
+  if (state.runtimeError) {
     await dialog.showMessageBox({
       type: "error",
       title: "Bank AI не запустился",
-      message: error instanceof Error ? error.message : "Неизвестная ошибка.",
+      message: state.runtimeError.message,
       detail: "Разрешите установку локального HTTPS-сертификата и перезапустите приложение."
     });
   }
-
-  updateTrayMenu();
-}
-
-async function restartRuntime(): Promise<void> {
-  if (server?.listening) {
-    await new Promise<void>((resolve) => server!.close(() => resolve()));
-  }
-  server = undefined;
-  await startRuntime();
-}
-
-function registerSettingsHandlers(): void {
-  ipcMain.handle("settings:load", () => {
-    const settings = readSettings();
-    return {
-      hasApiKey: settings.apiKey.length > 0,
-      apiBase: settings.apiBase,
-      model: settings.model
-    };
-  });
-
-  ipcMain.handle("settings:save", async (_event, input: unknown) => {
-    if (!input || typeof input !== "object") throw new Error("Некорректные настройки.");
-    const values = input as Record<string, unknown>;
-    const current = readSettings();
-    const apiKey = typeof values.apiKey === "string" && values.apiKey.trim()
-      ? values.apiKey.trim()
-      : current.apiKey;
-    const apiBase = typeof values.apiBase === "string" ? values.apiBase.trim().replace(/\/$/, "") : "";
-    const model = typeof values.model === "string" ? values.model.trim() : "";
-
-    if (!apiKey) throw new Error("Введите API-ключ.");
-    if (!model) throw new Error("Укажите модель.");
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(apiBase);
-    } catch {
-      throw new Error("Укажите корректный адрес LiteLLM.");
-    }
-    if (parsedUrl.protocol !== "https:") throw new Error("Адрес LiteLLM должен начинаться с https://.");
-
-    const candidateProvider = new OpenAiProvider({ apiKey, baseURL: apiBase, model });
-    try {
-      await candidateProvider.transform("grammar", "Проверка подключения.");
-    } catch {
-      throw new Error("Не удалось подключиться. Проверьте API-ключ, адрес сервера и доступ к корпоративной сети.");
-    }
-
-    writeSettings({ apiKey, apiBase, model });
-    await restartRuntime();
-    if (runtimeStatus !== "работает" || providerStatus.startsWith("mock")) {
-      throw new Error("Настройки сохранены, но подключение не запустилось. Проверьте введённые значения.");
-    }
-    return { provider: providerStatus };
-  });
-
-  ipcMain.on("settings:close", () => settingsWindow?.close());
 }
 
 async function bootstrap(): Promise<void> {
-  const icon = nativeImage.createFromPath(iconPath());
-  tray = new Tray(icon.resize({ width: 20, height: 20 }));
+  tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 }));
   tray.on("double-click", () => void shell.openExternal(`https://localhost:${PORT}/health`));
+  const config = new ConfigService(configPath());
+  runtime = new RuntimeManager(config, addinPath(), PORT, "127.0.0.1", updateTrayMenu);
+  wordInstaller = new WordAddInInstaller(
+    async (file, args) => {
+      const result = await execFileAsync(file, args);
+      return { stdout: String(result.stdout) };
+    },
+    (target) => shell.openPath(target)
+  );
+  registerSettingsIpc({ ipcMain, config, runtime, closeWindow: () => settingsWindow?.close() });
   updateTrayMenu();
-
-  app.setLoginItemSettings({
-    openAtLogin: true,
-    openAsHidden: true
-  });
-
-  await startRuntime();
+  app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+  await showStartupProblems(await runtime.start());
 }
 
 const hasLock = app.requestSingleInstanceLock();
-if (!hasLock) {
-  app.quit();
-} else {
-  registerSettingsHandlers();
+if (!hasLock) app.quit();
+else {
   app.on("second-instance", () => {
-    dialog.showMessageBox({
-      type: "info",
-      title: "Bank AI for Word",
-      message: `Приложение уже запущено. Статус: ${runtimeStatus}.`
-    }).catch(() => undefined);
+    dialog.showMessageBox({ type: "info", title: "Bank AI for Word", message: `Приложение уже запущено. Статус: ${runtime?.state.status ?? "запускается"}.` }).catch(() => undefined);
   });
-
   app.whenReady().then(bootstrap).catch((error) => {
     dialog.showErrorBox("Bank AI", error instanceof Error ? error.message : String(error));
     app.quit();
@@ -423,4 +169,4 @@ if (!hasLock) {
 }
 
 app.on("window-all-closed", () => undefined);
-app.on("before-quit", () => server?.close());
+app.on("before-quit", () => { void runtime?.stop(); });

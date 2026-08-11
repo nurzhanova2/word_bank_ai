@@ -68,6 +68,39 @@ local-runtime/src/
 └── validators/    защита реквизитов и проверка результата
 ```
 
+Промпты находятся в `packages/local-runtime/src/actions/prompts.ts`. Они не
+смешаны с HTTP-клиентом LiteLLM или валидацией результата.
+
+## Структура Word Add-in
+
+```text
+addin/src/
+├── api/          типизированный TransformClient
+├── diff/         чистый алгоритм сравнения слов
+├── office/       WordAdapter поверх Office.js
+├── ui/           построение карточек из action registry
+└── main.ts       UI-controller и состояние текущей операции
+```
+
+## Структура Desktop Host
+
+```text
+desktop-host/src/
+├── ipc/          обработчики окна настроек
+├── services/
+│   ├── config-service.ts
+│   ├── runtime-manager.ts
+│   └── word-addin-installer.ts
+└── main.ts       Electron lifecycle, tray и координация сервисов
+```
+
+## Модель ошибок
+
+Runtime возвращает стабильные коды `INVALID_API_KEY`, `PROVIDER_TIMEOUT`,
+`PROVIDER_RATE_LIMIT`, `PROVIDER_UNAVAILABLE`, `RESULT_VALIDATION_FAILED` и
+`PROVIDER_ERROR`. Ответ содержит безопасное сообщение, признак `retryable` и
+`operationId`; внутренние сообщения провайдера пользователю не передаются.
+
 ## AI Provider
 
 Для локальной демонстрации доступен `MockAiProvider`, который работает без ключей
@@ -99,9 +132,11 @@ LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8
 
 ## Тестирование
 
-Архитектурные изменения выполняются по TDD. Автотесты проверяют полноту реестра,
+Архитектурные изменения выполняются по TDD. Автотесты Add-in, Desktop Host и
+runtime проверяют полноту реестра,
 `applyMode`, маскирование и точное восстановление реквизитов, запрет новых данных,
-retry при потере маркера и отсутствие исходных реквизитов в запросе к provider.
+retry при потере маркера, API client, diff, настройки, поиск Word, типизированные
+HTTP-ошибки и отсутствие исходных реквизитов в запросе к provider.
 
 ## Следующие архитектурные шаги
 
