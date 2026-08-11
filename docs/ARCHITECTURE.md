@@ -33,23 +33,25 @@ Windows установщик должен создать сертификат, �
 }
 ```
 
-Поддерживаемые действия: `rewrite`, `shorten`, `formalize`. Размер текста
-ограничен 20 000 символами.
+Поддерживаемые действия: `rewrite`, `shorten`, `formalize`, `grammar`, `translate`,
+`expand`, `tone`. Для перевода передаётся `targetLanguage` (`ru`, `kk`, `en`),
+для изменения тона — `targetTone` (`neutral`, `polite`, `strict`, `diplomatic`).
+Размер текста ограничен 20 000 символами.
 
 ## AI Provider
 
 Для локальной демонстрации доступен `MockAiProvider`, который работает без ключей
 и не передаёт текст наружу. Для рабочего теста реализован `OpenAiProvider` через
-OpenAI Responses API. Оба реализуют единый интерфейс `AiProvider`; ключи и
+OpenAI-совместимый LiteLLM Chat Completions API. Оба реализуют единый интерфейс `AiProvider`; ключи и
 системные промпты не попадают в add-in.
 
 Конфигурация OpenAI хранится только в локальном `.env`:
 
 ```dotenv
-BANK_AI_PROVIDER=openai
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5.6-sol
+BANK_AI_PROVIDER=litellm
+LLM_API_KEY=
+LLM_API_BASE=https://prod-litellm.nationalbank.kz
+LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8
 ```
 
 Для возврата к полностью локальному демонстрационному режиму достаточно указать

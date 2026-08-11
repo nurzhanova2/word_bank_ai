@@ -311,7 +311,7 @@ Integrated Apps. Локальное приложение при этом всё 
 
 - поддержка настольного Word для Windows;
 - получение текущего текстового выделения;
-- действия Rewrite, Shorten и Formalize;
+- действия Rewrite, Shorten, Formalize, Grammar, Translate, Expand и Change Tone;
 - предпросмотр «Было / Стало»;
 - Accept и Reject;
 - локальное приложение в системном трее;
@@ -568,24 +568,29 @@ Office. Для пилота на Windows manifest можно назначить 
 
 ### 10.2. Текущее состояние
 
-- реализованы Rewrite, Shorten и Formalize;
+- реализованы Rewrite, Shorten, Formalize и проверка грамматики;
+- реализован перевод между русским, казахским и английским с сохранением числовых реквизитов;
+- реализованы расширение текста и изменение тона (нейтральный, вежливый, строгий, дипломатичный);
 - реализовано чтение текущего выделения через Office.js;
 - реализован предпросмотр «Было / Стало»;
+- изменённые слова подсвечиваются в блоке «Стало»;
 - реализованы Accept и Reject;
 - локальный API валидирует действие и ограничивает текст 20 000 символами;
 - runtime слушает только `127.0.0.1`;
-- подключены mock-провайдер и OpenAI Responses API;
+- подключены mock-провайдер и OpenAI-совместимый LiteLLM Chat Completions API;
 - добавлены typecheck, сборка и минимальный тест провайдера.
+
+Подробный актуальный чек-лист находится в [PROGRESS.md](PROGRESS.md).
 
 Для реальной генерации создайте локальный `.env` на основе `.env.example`:
 
 ```dotenv
-BANK_AI_PROVIDER=openai
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5.6-sol
+BANK_AI_PROVIDER=litellm
+LLM_API_KEY=
+LLM_API_BASE=https://prod-litellm.nationalbank.kz
+LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8
 ```
 
-`OPENAI_API_KEY` заполняется пользователем самостоятельно и не должен попадать в
+`LLM_API_KEY` заполняется пользователем самостоятельно и не должен попадать в
 Git или в код Word Add-in. Mock-провайдер остаётся доступен через
 `BANK_AI_PROVIDER=mock` для проверки интерфейса без API-ключа и внешних запросов.

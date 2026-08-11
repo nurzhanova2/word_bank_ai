@@ -11,6 +11,10 @@
     "./provider": {
       "types": "./dist/provider.d.ts",
       "default": "./dist/provider.js"
+    },
+    "./https-options": {
+      "types": "./dist/https-options.d.ts",
+      "default": "./dist/https-options.js"
     }
   },
   "scripts": {

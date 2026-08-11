@@ -8,8 +8,17 @@ import { z } from "zod";
 import type { AiProvider } from "./provider.js";
 
 const transformSchema = z.object({
-  action: z.enum(["rewrite", "shorten", "formalize"]),
-  text: z.string().trim().min(1).max(20_000)
+  action: z.enum(["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone"]),
+  text: z.string().trim().min(1).max(20_000),
+  targetLanguage: z.enum(["ru", "kk", "en"]).optional(),
+  targetTone: z.enum(["neutral", "polite", "strict", "diplomatic"]).optional()
+}).superRefine((value, context) => {
+  if (value.action === "translate" && !value.targetLanguage) {
+    context.addIssue({ code: "custom", path: ["targetLanguage"], message: "Выберите язык перевода." });
+  }
+  if (value.action === "tone" && !value.targetTone) {
+    context.addIssue({ code: "custom", path: ["targetTone"], message: "Выберите тон текста." });
+  }
 });
 
 export function createApp(provider: AiProvider, staticDirectory?: string) {
@@ -35,7 +44,10 @@ export function createApp(provider: AiProvider, staticDirectory?: string) {
 
     const startedAt = performance.now();
     try {
-      const result = await provider.transform(parsed.data.action, parsed.data.text);
+      const result = await provider.transform(parsed.data.action, parsed.data.text, {
+        targetLanguage: parsed.data.targetLanguage,
+        targetTone: parsed.data.targetTone
+      });
       const body: TransformResponse = {
         operationId: crypto.randomUUID(),
         result,

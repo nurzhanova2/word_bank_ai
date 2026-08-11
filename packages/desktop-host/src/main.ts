@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { createApp } from "@bank-ai/local-runtime/app";
+import { getLocalHttpsOptions } from "@bank-ai/local-runtime/https-options";
 import { createProvider, MockAiProvider } from "@bank-ai/local-runtime/provider";
 import { config as loadEnvironment } from "dotenv";
 import {
@@ -15,7 +16,6 @@ import {
   shell,
   Tray
 } from "electron";
-import { getHttpsServerOptions } from "office-addin-dev-certs";
 
 const PORT = 3847;
 const HOST = "127.0.0.1";
@@ -60,10 +60,10 @@ function ensureConfigFile(): void {
   fs.writeFileSync(
     target,
     [
-      "BANK_AI_PROVIDER=openai",
-      "OPENAI_API_KEY=",
-      "OPENAI_BASE_URL=https://api.openai.com/v1",
-      "OPENAI_MODEL=gpt-5.6-sol",
+      "BANK_AI_PROVIDER=litellm",
+      "LLM_API_KEY=",
+      "LLM_API_BASE=https://prod-litellm.nationalbank.kz",
+      "LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8",
       ""
     ].join("\n"),
     { encoding: "utf8", mode: 0o600 }
@@ -211,17 +211,17 @@ async function startRuntime(): Promise<void> {
     providerStatus = provider.name;
   } catch (error) {
     provider = new MockAiProvider();
-    providerStatus = "mock — заполните OPENAI_API_KEY";
+    providerStatus = "mock — заполните LLM_API_KEY";
     await dialog.showMessageBox({
       type: "warning",
-      title: "Нужно настроить OpenAI",
+      title: "Нужно настроить LLM API",
       message: error instanceof Error ? error.message : "Проверьте настройки AI.",
       detail: `Откройте настройки из меню Bank AI. Пока включён демонстрационный mock-режим.\n\n${configPath()}`
     });
   }
 
   try {
-    const options = await getHttpsServerOptions();
+    const options = await getLocalHttpsOptions();
     server = https.createServer(options, createApp(provider, addinPath()));
     await new Promise<void>((resolve, reject) => {
       server!.once("error", reject);
