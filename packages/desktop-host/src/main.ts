@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import https from "node:https";
 import path from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createApp } from "@bank-ai/local-runtime/app";
@@ -186,6 +186,40 @@ function updateTrayMenu(): void {
   );
 }
 
+async function findWordExecutable(): Promise<string | undefined> {
+  const registryKeys = [
+    "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Winword.exe",
+    "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Winword.exe"
+  ];
+
+  for (const registryKey of registryKeys) {
+    try {
+      const { stdout } = await execFileAsync("reg.exe", ["query", registryKey, "/ve"]);
+      const executable = stdout.match(/REG_SZ\s+([^\r\n]*WINWORD\.EXE)\s*$/imu)?.[1]?.trim();
+      if (executable && fs.existsSync(executable)) return executable;
+    } catch {
+      // Проверяем следующий источник пути.
+    }
+  }
+
+  const programDirectories = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean) as string[];
+  for (const directory of programDirectories) {
+    const candidate = path.join(directory, "Microsoft Office", "Root", "Office16", "WINWORD.EXE");
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+async function launchWord(): Promise<boolean> {
+  const executable = await findWordExecutable();
+  if (!executable) return false;
+  try {
+    return (await shell.openPath(executable)) === "";
+  } catch {
+    return false;
+  }
+}
+
 async function installWordAddIn(): Promise<void> {
   if (process.platform !== "win32") {
     await dialog.showMessageBox({
@@ -210,17 +244,15 @@ async function installWordAddIn(): Promise<void> {
       "/f"
     ]);
 
-    try {
-      spawn("winword.exe", [], { detached: true, stdio: "ignore" }).unref();
-    } catch {
-      // Регистрация уже выполнена; пользователь сможет открыть Word вручную.
-    }
+    const wordOpened = await launchWord();
 
     await dialog.showMessageBox({
       type: "info",
       title: "Bank AI установлен",
-      message: "Дополнение зарегистрировано. Word должен открыться автоматически.",
-      detail: "Если панель не появилась, откройте Главная → Дополнения → Bank AI."
+      message: wordOpened
+        ? "Дополнение зарегистрировано. Word открыт автоматически."
+        : "Дополнение зарегистрировано. Откройте Word вручную.",
+      detail: "В Word откройте Главная → Дополнения → Bank AI."
     });
   } catch (error) {
     await dialog.showMessageBox({
