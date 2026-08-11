@@ -21,6 +21,7 @@ const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 
 let pendingResult = "";
+let pendingAction: TransformAction | undefined;
 
 interface WordToken {
   value: string;
@@ -101,6 +102,7 @@ function renderHighlightedResult(source: string, result: string): void {
 
 function resetPreview(): void {
   pendingResult = "";
+  pendingAction = undefined;
   originalElement.textContent = "";
   resultElement.textContent = "";
   previewElement.hidden = false;
@@ -149,6 +151,15 @@ async function replaceSelection(text: string): Promise<void> {
   });
 }
 
+async function appendSummary(text: string): Promise<void> {
+  await Word.run(async (context) => {
+    const range = context.document.getSelection();
+    const insertedRange = range.insertText(`\n\nРЕЗЮМЕ: ${text}`, Word.InsertLocation.after);
+    insertedRange.select();
+    await context.sync();
+  });
+}
+
 async function transform(action: TransformAction): Promise<void> {
   try {
     setBusy(true);
@@ -180,8 +191,9 @@ async function transform(action: TransformAction): Promise<void> {
     }
 
     pendingResult = body.result;
+    pendingAction = action;
     originalElement.textContent = text;
-    renderHighlightedResult(text, body.result);
+    renderHighlightedResult(text, action === "summary" ? `РЕЗЮМЕ: ${body.result}` : body.result);
     previewElement.hidden = false;
     previewElement.classList.remove("is-empty");
     setStatus(`Готово за ${body.durationMs} мс. Проверьте результат.`);
@@ -202,11 +214,16 @@ acceptButton.addEventListener("click", async () => {
   if (!pendingResult) return;
   try {
     setBusy(true);
-    await replaceSelection(pendingResult);
+    if (pendingAction === "summary") {
+      await appendSummary(pendingResult);
+    } else {
+      await replaceSelection(pendingResult);
+    }
+    const appliedAction = pendingAction;
     resetPreview();
-    setStatus("Изменение применено к документу.");
+    setStatus(appliedAction === "summary" ? "Резюме добавлено после выделенного текста." : "Изменение применено к документу.");
   } catch {
-    setStatus("Word не смог заменить выделенный текст.", true);
+    setStatus("Word не смог применить результат к выделенному тексту.", true);
   } finally {
     setBusy(false);
   }
