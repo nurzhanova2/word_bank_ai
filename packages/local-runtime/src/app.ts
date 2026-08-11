@@ -1,23 +1,32 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ApiError, HealthResponse, TransformResponse } from "@bank-ai/contracts";
+import {
+  getActionDefinition,
+  transformActions,
+  type ApiError,
+  type HealthResponse,
+  type TransformAction,
+  type TransformResponse
+} from "@bank-ai/contracts";
 import cors from "cors";
 import express from "express";
 import { z } from "zod";
 import type { AiProvider } from "./provider.js";
 
 const transformSchema = z.object({
-  action: z.enum(["rewrite", "shorten", "formalize", "grammar", "translate", "expand", "tone", "summary"]),
+  action: z.enum(transformActions as [TransformAction, ...TransformAction[]]),
   text: z.string().trim().min(1).max(20_000),
   targetLanguage: z.enum(["ru", "kk", "en"]).optional(),
   targetTone: z.enum(["neutral", "polite", "strict", "diplomatic"]).optional()
 }).superRefine((value, context) => {
-  if (value.action === "translate" && !value.targetLanguage) {
-    context.addIssue({ code: "custom", path: ["targetLanguage"], message: "Выберите язык перевода." });
-  }
-  if (value.action === "tone" && !value.targetTone) {
-    context.addIssue({ code: "custom", path: ["targetTone"], message: "Выберите тон текста." });
+  const option = getActionDefinition(value.action).option;
+  if (option && !value[option.requestField]) {
+    context.addIssue({
+      code: "custom",
+      path: [option.requestField],
+      message: `Выберите значение: ${option.ariaLabel.toLocaleLowerCase("ru")}.`
+    });
   }
 });
 

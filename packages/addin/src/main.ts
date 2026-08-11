@@ -1,12 +1,79 @@
-import type {
-  ApiError,
-  TargetLanguage,
-  TargetTone,
-  TransformAction,
-  TransformRequest,
-  TransformResponse
+import {
+  actionDefinitions,
+  getActionDefinition,
+  type ApiError,
+  type TransformAction,
+  type TransformRequest,
+  type TransformResponse
 } from "@bank-ai/contracts";
 import "./styles.css";
+
+const actionIcons: Partial<Record<TransformAction, string>> = {
+  rewrite: '<path d="m4 16 9.8-9.8a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Zm8.4-8.4 3 3M12 20h9" />',
+  shorten: '<circle cx="6" cy="7" r="3" /><circle cx="6" cy="17" r="3" /><path d="m8.5 8.5 11 8.5M8.5 15.5 19.5 7" />',
+  summary: '<path d="M5 5h14M5 9h14M5 13h9M5 17h11M5 21h7" />',
+  formalize: '<path d="M6 3h9l4 4v14H6V3Z" /><path d="M15 3v5h4M9 13h7M9 17h5M9 9h2" />',
+  grammar: '<path d="M5 4h9M9.5 4v12M6.5 10h6M15 16l2.2 2.2L21 13" />',
+  translate: '<path d="M4 5h10M9 3v2c0 5-2 8-5 10M6 10c2 2 4 3 7 4M15 10l4 11M13.5 17h7" />',
+  expand: '<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5M8 12h8M12 8v8" />',
+  tone: '<path d="M4 6h16M7 12h10M10 18h4" /><circle cx="4" cy="6" r="1" /><circle cx="17" cy="12" r="1" /><circle cx="10" cy="18" r="1" />'
+};
+
+function renderActions(): void {
+  const container = document.querySelector<HTMLElement>("#actions")!;
+  for (const definition of actionDefinitions) {
+    const card = document.createElement(definition.option ? "div" : "button");
+    card.className = `action-card${definition.option ? " action-card-option" : ""}`;
+    if (card instanceof HTMLButtonElement) {
+      card.type = "button";
+      card.dataset.action = definition.id;
+    }
+
+    const icon = document.createElement("span");
+    icon.className = "action-icon";
+    icon.ariaHidden = "true";
+    icon.innerHTML = `<svg viewBox="0 0 24 24">${actionIcons[definition.id] ?? '<path d="M12 4v16M4 12h16" />'}</svg>`;
+
+    const copy = document.createElement("span");
+    copy.className = "action-copy";
+    const title = document.createElement("strong");
+    title.textContent = definition.title;
+    copy.append(title);
+
+    if (definition.option) {
+      const select = document.createElement("select");
+      select.className = "action-select";
+      select.dataset.actionOption = definition.id;
+      select.ariaLabel = definition.option.ariaLabel;
+      for (const choice of definition.option.choices) {
+        const option = document.createElement("option");
+        option.value = choice.value;
+        option.textContent = choice.label;
+        select.append(option);
+      }
+      copy.append(select);
+    } else {
+      const description = document.createElement("small");
+      description.textContent = definition.description;
+      copy.append(description);
+    }
+
+    const trigger = document.createElement(definition.option ? "button" : "span");
+    trigger.className = definition.option ? "action-go" : "chevron";
+    trigger.textContent = "›";
+    trigger.ariaLabel = definition.option ? definition.title : null;
+    if (trigger instanceof HTMLButtonElement) {
+      trigger.type = "button";
+      trigger.dataset.action = definition.id;
+    } else {
+      trigger.ariaHidden = "true";
+    }
+    card.append(icon, copy, trigger);
+    container.append(card);
+  }
+}
+
+renderActions();
 
 const statusElement = document.querySelector<HTMLParagraphElement>("#status")!;
 const statusHeadingElement = document.querySelector<HTMLElement>("#status-heading")!;
@@ -15,8 +82,12 @@ const previewElement = document.querySelector<HTMLElement>("#preview")!;
 const originalElement = document.querySelector<HTMLParagraphElement>("#original")!;
 const resultElement = document.querySelector<HTMLParagraphElement>("#result")!;
 const actionButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-action]")];
-const translationLanguage = document.querySelector<HTMLSelectElement>("#translation-language")!;
-const toneStyle = document.querySelector<HTMLSelectElement>("#tone-style")!;
+const optionSelects = new Map<TransformAction, HTMLSelectElement>(
+  [...document.querySelectorAll<HTMLSelectElement>("[data-action-option]")].map((select) => [
+    select.dataset.actionOption as TransformAction,
+    select
+  ])
+);
 const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 
@@ -113,8 +184,7 @@ function resetPreview(): void {
 
 function setBusy(isBusy: boolean): void {
   actionButtons.forEach((button) => (button.disabled = isBusy));
-  translationLanguage.disabled = isBusy;
-  toneStyle.disabled = isBusy;
+  optionSelects.forEach((select) => (select.disabled = isBusy));
   acceptButton.disabled = isBusy || !pendingResult;
   rejectButton.disabled = isBusy || !pendingResult;
 }
@@ -151,10 +221,10 @@ async function replaceSelection(text: string): Promise<void> {
   });
 }
 
-async function appendSummary(text: string): Promise<void> {
+async function appendResult(text: string, prefix = ""): Promise<void> {
   await Word.run(async (context) => {
     const range = context.document.getSelection();
-    const insertedRange = range.insertText(`\n\nРЕЗЮМЕ: ${text}`, Word.InsertLocation.after);
+    const insertedRange = range.insertText(`\n\n${prefix ? `${prefix} ` : ""}${text}`, Word.InsertLocation.after);
     insertedRange.select();
     await context.sync();
   });
@@ -172,11 +242,10 @@ async function transform(action: TransformAction): Promise<void> {
     }
 
     const payload: TransformRequest = { action, text };
-    if (action === "translate") {
-      payload.targetLanguage = translationLanguage.value as TargetLanguage;
-    }
-    if (action === "tone") {
-      payload.targetTone = toneStyle.value as TargetTone;
+    const option = getActionDefinition(action).option;
+    if (option) {
+      const selectedValue = optionSelects.get(action)?.value;
+      if (selectedValue) Object.assign(payload, { [option.requestField]: selectedValue });
     }
 
     const response = await fetch("/api/v1/transform", {
@@ -193,7 +262,8 @@ async function transform(action: TransformAction): Promise<void> {
     pendingResult = body.result;
     pendingAction = action;
     originalElement.textContent = text;
-    renderHighlightedResult(text, action === "summary" ? `РЕЗЮМЕ: ${body.result}` : body.result);
+    const resultPrefix = getActionDefinition(action).resultPrefix;
+    renderHighlightedResult(text, resultPrefix ? `${resultPrefix} ${body.result}` : body.result);
     previewElement.hidden = false;
     previewElement.classList.remove("is-empty");
     setStatus(`Готово за ${body.durationMs} мс. Проверьте результат.`);
@@ -211,17 +281,18 @@ actionButtons.forEach((button) => {
 });
 
 acceptButton.addEventListener("click", async () => {
-  if (!pendingResult) return;
+  if (!pendingResult || !pendingAction) return;
   try {
     setBusy(true);
-    if (pendingAction === "summary") {
-      await appendSummary(pendingResult);
+    const definition = getActionDefinition(pendingAction);
+    if (definition.applyMode === "append") {
+      await appendResult(pendingResult, definition.resultPrefix);
     } else {
       await replaceSelection(pendingResult);
     }
-    const appliedAction = pendingAction;
+    const appliedMode = definition.applyMode;
     resetPreview();
-    setStatus(appliedAction === "summary" ? "Резюме добавлено после выделенного текста." : "Изменение применено к документу.");
+    setStatus(appliedMode === "append" ? "Результат добавлен после выделенного текста." : "Изменение применено к документу.");
   } catch {
     setStatus("Word не смог применить результат к выделенному тексту.", true);
   } finally {

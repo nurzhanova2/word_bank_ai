@@ -1,16 +1,17 @@
-# Архитектура Bank AI MVP
+# Архитектура Bank AI
 
 ## Цель
 
-Первый MVP проверяет один сценарий: выделить текст в Word, выполнить одно из трёх
-AI-действий, увидеть «Было / Стало» и применить либо отклонить результат.
+Пользователь выделяет текст в Word, выполняет зарегистрированное AI-действие,
+проверяет «Было / Стало» и применяет либо отклоняет результат.
 
 ## Компоненты
 
 ```text
 packages/addin          Word Task Pane: Office.js и пользовательский интерфейс
-packages/contracts      Общие TypeScript-типы API
-packages/local-runtime  HTTPS localhost API, статика панели и AI Provider
+packages/contracts      Общие типы, реестр действий, applyMode и параметры
+packages/local-runtime  HTTPS API, orchestration, providers и validators
+packages/desktop-host   Electron lifecycle, настройки, tray и установка Add-in
 ```
 
 Runtime слушает только `127.0.0.1:3847`. В режиме разработки используется
@@ -38,12 +39,42 @@ Windows установщик должен создать сертификат, �
 для изменения тона — `targetTone` (`neutral`, `polite`, `strict`, `diplomatic`).
 Размер текста ограничен 20 000 символами.
 
+## Transform pipeline
+
+```text
+Word selection
+  → action registry
+  → requisite masking
+  → action prompt + options
+  → CompletionProvider (LiteLLM)
+  → marker integrity validation
+  → requisite restoration
+  → action result validation
+  → replace / append согласно applyMode
+```
+
+Реквизиты (числа, даты, email и URL) заменяются маркерами до обращения к LLM.
+Для обычных действий каждый маркер должен вернуться ровно один раз. Для summary
+второстепенные маркеры могут быть опущены, но модель не может изменить,
+дублировать или добавить реквизиты.
+
+## Структура AI-слоя
+
+```text
+local-runtime/src/
+├── actions/       prompt catalog и параметры действий
+├── providers/     интерфейсы, mock и LiteLLM adapter
+├── services/      TransformService orchestration
+└── validators/    защита реквизитов и проверка результата
+```
+
 ## AI Provider
 
 Для локальной демонстрации доступен `MockAiProvider`, который работает без ключей
 и не передаёт текст наружу. Для рабочего теста реализован `OpenAiProvider` через
-OpenAI-совместимый LiteLLM Chat Completions API. Оба реализуют единый интерфейс `AiProvider`; ключи и
-системные промпты не попадают в add-in.
+OpenAI-совместимый LiteLLM Chat Completions API. `TransformService` зависит от
+интерфейса `CompletionProvider`, поэтому транспорт модели заменяется отдельно от
+действий, промптов и валидаторов. Ключи и системные промпты не попадают в add-in.
 
 Конфигурация OpenAI хранится только в локальном `.env`:
 
@@ -66,10 +97,16 @@ LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8
 - каждое изменение требует Accept;
 - содержимое документа не записывается в технические логи.
 
+## Тестирование
+
+Архитектурные изменения выполняются по TDD. Автотесты проверяют полноту реестра,
+`applyMode`, маскирование и точное восстановление реквизитов, запрет новых данных,
+retry при потере маркера и отсутствие исходных реквизитов в запросе к provider.
+
 ## Следующие архитектурные шаги
 
-1. Подключить корпоративный AI Gateway вместо mock-провайдера.
-2. Добавить журнал метаданных Accept/Reject без текста документа.
-3. Проверить сохранение стилей выделенного диапазона.
-4. Создать Windows tray-host и установщик.
-5. Подписать установщик и провести пилот на 2–5 устройствах.
+1. Расширить защиту на ФИО, ИИН/БИН, IBAN/BIC и корпоративные идентификаторы.
+2. Добавить типизированные ошибки и журнал operation ID без текста документа.
+3. Вынести Office.js в тестируемый WordAdapter.
+4. Добавить chunking и map-reduce для длинных документов.
+5. Хранить ключ через Windows Credential Manager/DPAPI.
