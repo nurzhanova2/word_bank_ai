@@ -1,9 +1,9 @@
-import { replaceParagraphTextInOoxml } from "./formatted-ooxml.js";
+import { buildStyledAppendOoxml, replaceParagraphTextInOoxml } from "./formatted-ooxml.js";
 
 export interface WordAdapter {
   getSelectedContent(): Promise<{ text: string; ooxml: string }>;
   replaceSelection(text: string, sourceOoxml?: string): Promise<void>;
-  appendAfterSelection(text: string, prefix?: string): Promise<void>;
+  appendAfterSelection(text: string, prefix?: string, sourceOoxml?: string): Promise<void>;
 }
 
 export class OfficeWordAdapter implements WordAdapter {
@@ -31,10 +31,14 @@ export class OfficeWordAdapter implements WordAdapter {
     });
   }
 
-  async appendAfterSelection(text: string, prefix = ""): Promise<void> {
+  async appendAfterSelection(text: string, prefix = "", sourceOoxml?: string): Promise<void> {
     await Word.run(async (context) => {
       const range = context.document.getSelection();
-      const insertedRange = range.insertText(`\n\n${prefix ? `${prefix} ` : ""}${text}`, Word.InsertLocation.after);
+      const appendText = `${prefix ? `${prefix} ` : ""}${text}`;
+      const styledOoxml = sourceOoxml ? buildStyledAppendOoxml(sourceOoxml, `\n\n${appendText}`) : undefined;
+      const insertedRange = styledOoxml
+        ? range.insertOoxml(styledOoxml, Word.InsertLocation.after)
+        : range.insertText(`\n\n${appendText}`, Word.InsertLocation.after);
       insertedRange.select();
       await context.sync();
     });

@@ -1,4 +1,5 @@
 import type { GrammarIssue } from "@bank-ai/contracts";
+import { diffArrays } from "diff";
 
 interface WordToken {
   value: string;
@@ -9,6 +10,36 @@ interface WordToken {
 export interface GrammarComparisonPart {
   kind: "plain" | "removed" | "added" | "review";
   text: string;
+}
+
+function comparisonTokens(text: string): string[] {
+  return text.match(/[\p{L}\p{N}]+(?:[-’'][\p{L}\p{N}]+)*|\s+|[^\p{L}\p{N}\s]+/gu) ?? [];
+}
+
+export function comparisonParts(source: string, result: string): GrammarComparisonPart[] {
+  const raw: GrammarComparisonPart[] = diffArrays(comparisonTokens(source), comparisonTokens(result)).map((change) => ({
+    kind: change.removed ? "removed" : change.added ? "added" : "plain",
+    text: change.value.join("")
+  }));
+  const parts: GrammarComparisonPart[] = [];
+  for (let index = 0; index < raw.length; index += 1) {
+    const part = raw[index]!;
+    const previous = parts.at(-1);
+    const next = raw[index + 1];
+    if (part.kind === "plain" && /^\s+$/u.test(part.text) && previous && next && previous.kind === next.kind && previous.kind !== "plain") {
+      previous.text += part.text + next.text;
+      index += 1;
+    } else if (previous?.kind === part.kind) previous.text += part.text;
+    else parts.push({ ...part });
+  }
+  return parts;
+}
+
+export function appendComparisonParts(source: string, appended: string): GrammarComparisonPart[] {
+  return [
+    { kind: "plain", text: source },
+    { kind: "added", text: `\n\n${appended}` }
+  ];
 }
 
 export function grammarComparisonParts(source: string, issues: readonly GrammarIssue[]): GrammarComparisonPart[] {

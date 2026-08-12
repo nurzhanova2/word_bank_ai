@@ -75,3 +75,32 @@ export function replaceParagraphTextInOoxml(ooxml: string, resultText: string): 
   }
   return output + ooxml.slice(cursor);
 }
+
+function dominantRunProperties(ooxml: string): string {
+  const weights = new Map<string, number>();
+  for (const run of ooxml.matchAll(/<w:r(?:\s[^>]*)?>(?<content>[\s\S]*?)<\/w:r>/gu)) {
+    const content = run.groups?.content ?? "";
+    const properties = content.match(/<w:rPr(?:\s[^>]*)?>[\s\S]*?<\/w:rPr>/u)?.[0] ?? "";
+    const visibleText = [...content.matchAll(/<w:t(?:\s[^>]*)?>(?<value>[\s\S]*?)<\/w:t>/gu)]
+      .map((node) => decodeXml(node.groups?.value ?? "")).join("");
+    if (visibleText.trim()) weights.set(properties, (weights.get(properties) ?? 0) + visibleText.length);
+  }
+  return [...weights.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? "";
+}
+
+export function buildStyledAppendOoxml(sourceOoxml: string, text: string): string | undefined {
+  const body = sourceOoxml.match(/(?<open><w:body(?:\s[^>]*)?>)(?<content>[\s\S]*?)(?<close><\/w:body>)/u);
+  const firstParagraph = sourceOoxml.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/u)?.[0];
+  if (!body?.groups || !firstParagraph) return undefined;
+  const paragraphProperties = firstParagraph.match(/<w:pPr(?:\s[^>]*)?>[\s\S]*?<\/w:pPr>/u)?.[0]
+    ?.replace(/<w:numPr(?:\s[^>]*)?>[\s\S]*?<\/w:numPr>/gu, "") ?? "";
+  const runProperties = dominantRunProperties(sourceOoxml);
+  const paragraphs = text.split(/\r\n|\r|\n/u).map((line) => {
+    const preserve = /^\s|\s$/u.test(line) ? ' xml:space="preserve"' : "";
+    return `<w:p>${paragraphProperties}<w:r>${runProperties}<w:t${preserve}>${escapeXml(line)}</w:t></w:r></w:p>`;
+  }).join("");
+  const sectionProperties = (body.groups.content ?? "").match(/<w:sectPr(?:\s[^>]*)?>[\s\S]*?<\/w:sectPr>/u)?.[0] ?? "";
+  return sourceOoxml.slice(0, body.index!)
+    + body.groups.open + paragraphs + sectionProperties + body.groups.close
+    + sourceOoxml.slice(body.index! + body[0].length);
+}

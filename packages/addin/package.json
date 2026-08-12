@@ -1,6 +1,6 @@
 {
   "name": "@bank-ai/addin",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,11 +9,12 @@
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
-    "@bank-ai/contracts": "0.3.2"
+    "@bank-ai/contracts": "0.3.3",
+    "diff": "^9.0.0"
   },
   "devDependencies": {
-    "@types/office-js": "^1.0.604",
     "@types/node": "^24.2.1",
+    "@types/office-js": "^1.0.604",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vite": "^7.1.1"

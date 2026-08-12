@@ -5,7 +5,7 @@ import {
   type TransformRequest
 } from "@bank-ai/contracts";
 import { checkGrammar, TransformApiError, transformText } from "./api/transform-client.js";
-import { changedResultWordIndexes, grammarComparisonParts, wordTokens } from "./diff/text-diff.js";
+import { appendComparisonParts, changedResultWordIndexes, comparisonParts, grammarComparisonParts, wordTokens } from "./diff/text-diff.js";
 import { OfficeWordAdapter } from "./office/word-adapter.js";
 import { renderActions } from "./ui/action-renderer.js";
 import "./styles.css";
@@ -72,10 +72,17 @@ function highlightedSourceFragment(source: string, result: string): DocumentFrag
 
 function renderHighlightedResult(source: string, result: string): void {
   resultElement.replaceChildren(highlightedResultFragment(source, result));
-  const arrow = document.createElement("span");
-  arrow.className = "change-arrow";
-  arrow.textContent = "  →  ";
-  changesElement.replaceChildren(highlightedSourceFragment(source, result), arrow, highlightedResultFragment(source, result));
+  renderComparison(comparisonParts(source, result));
+}
+
+function renderComparison(parts: ReturnType<typeof comparisonParts>): void {
+  changesElement.replaceChildren(...parts.map((part) => {
+    if (part.kind === "plain") return document.createTextNode(part.text);
+    const mark = document.createElement("mark");
+    mark.className = part.kind === "removed" ? "removed-token" : part.kind === "added" ? "change-token" : "review-token";
+    mark.textContent = part.text;
+    return mark;
+  }));
 }
 
 function renderGrammarComparison(
@@ -84,14 +91,13 @@ function renderGrammarComparison(
   issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]
 ): void {
   resultElement.replaceChildren(highlightedResultFragment(source, result));
-  changesElement.replaceChildren(...grammarComparisonParts(source, issues).map((part) => {
-    if (part.kind === "plain") return document.createTextNode(part.text);
-    const mark = document.createElement("mark");
-    mark.className = part.kind === "removed" ? "removed-token" : part.kind === "added" ? "change-token" : "review-token";
-    mark.textContent = part.text;
+  const parts = grammarComparisonParts(source, issues);
+  renderComparison(parts);
+  [...changesElement.querySelectorAll<HTMLElement>("mark")].forEach((mark, index) => {
+    const part = parts.filter((candidate) => candidate.kind !== "plain")[index];
+    if (!part) return;
     mark.title = part.kind === "review" ? "Требуется ручная проверка" : part.kind === "removed" ? "Было" : "Стало";
-    return mark;
-  }));
+  });
 }
 
 function resetPreview(): void {
@@ -189,7 +195,12 @@ async function transform(action: TransformAction): Promise<void> {
     pendingSourceOoxml = selection.ooxml;
     originalElement.textContent = text;
     const prefix = getActionDefinition(action).resultPrefix;
-    renderHighlightedResult(text, prefix ? `${prefix} ${response.result}` : response.result);
+    if (prefix) {
+      const appended = `${prefix} ${response.result}`;
+      const finalDocument = `${text}\n\n${appended}`;
+      resultElement.replaceChildren(highlightedResultFragment(text, finalDocument));
+      renderComparison(appendComparisonParts(text, appended));
+    } else renderHighlightedResult(text, response.result);
     previewElement.hidden = false;
     previewElement.classList.remove("is-empty");
     setStatus(`Готово за ${response.durationMs} мс. Проверьте результат.`);
@@ -229,7 +240,7 @@ acceptButton.addEventListener("click", async () => {
   try {
     setBusy(true);
     const definition = getActionDefinition(pendingAction);
-    if (definition.applyMode === "append") await word.appendAfterSelection(pendingResult, definition.resultPrefix);
+    if (definition.applyMode === "append") await word.appendAfterSelection(pendingResult, definition.resultPrefix, pendingSourceOoxml);
     else await word.replaceSelection(pendingResult, pendingSourceOoxml);
     const appliedMode = definition.applyMode;
     resetPreview();

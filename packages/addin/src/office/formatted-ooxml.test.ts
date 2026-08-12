@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { replaceParagraphTextInOoxml } from "./formatted-ooxml.js";
+import { buildStyledAppendOoxml, replaceParagraphTextInOoxml } from "./formatted-ooxml.js";
 
 const sample = `<w:document xmlns:w="word"><w:body>
 <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>Старый</w:t></w:r></w:p>
@@ -65,4 +65,25 @@ test("empty paragraphs are retained instead of being consumed", () => {
   assert.equal((result.match(/<w:p(?:\s[^>]*)?>/gu) ?? []).length, 3);
   assert.match(result, /Первый/u);
   assert.match(result, /Третий/u);
+});
+
+test("summary append inherits the dominant selected run and paragraph style", () => {
+  const mixed = `<w:document xmlns:w="word"><w:body><w:p><w:pPr><w:jc w:val="both"/></w:pPr>
+    <w:r><w:rPr><w:b/></w:rPr><w:t>Заголовок</w:t></w:r>
+    <w:r><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="24"/></w:rPr><w:t> основной текст документа</w:t></w:r>
+  </w:p></w:body></w:document>`;
+  const result = buildStyledAppendOoxml(mixed, "РЕЗЮМЕ: Итог документа.");
+  assert.ok(result);
+  assert.match(result, /<w:jc w:val="both"\/>/u);
+  assert.match(result, /<w:rFonts w:ascii="Arial"\/>/u);
+  assert.match(result, /<w:sz w:val="24"\/>/u);
+  assert.doesNotMatch(result, /<w:b\/>/u);
+  assert.match(result, /РЕЗЮМЕ: Итог документа\./u);
+});
+
+test("summary append keeps each generated paragraph in the selected document style", () => {
+  const result = buildStyledAppendOoxml(sample, "РЕЗЮМЕ:\nПервый вывод.\nВторой вывод.");
+  assert.ok(result);
+  assert.equal((result.match(/<w:p(?:\s[^>]*)?>/gu) ?? []).length, 3);
+  assert.equal((result.match(/<w:pStyle w:val="Heading1"\/>/gu) ?? []).length, 3);
 });
