@@ -144,7 +144,9 @@ async function bootstrap(): Promise<void> {
   tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 }));
   tray.on("double-click", () => void shell.openExternal(`https://localhost:${PORT}/health`));
   const config = new ConfigService(configPath());
-  languageTool = new LanguageToolManager(resourcePath("grammar", "vendor/grammar"));
+  const grammarPath = resourcePath("grammar", "vendor/grammar");
+  process.env.KAZAKH_HUNSPELL_PATH = path.join(grammarPath, "hunspell-kk");
+  languageTool = new LanguageToolManager(grammarPath);
   await languageTool.start();
   runtime = new RuntimeManager(config, addinPath(), PORT, "127.0.0.1", updateTrayMenu);
   wordInstaller = new WordAddInInstaller(

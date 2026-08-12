@@ -19,6 +19,9 @@ import { toApiFailure } from "./errors.js";
 import { GrammarService } from "./grammar/grammar-service.js";
 import { LanguageToolEngine } from "./grammar/languagetool-engine.js";
 import { LlmGrammarEngine } from "./grammar/llm-grammar-engine.js";
+import { KazakhGrammarEngine } from "./grammar/kazakh-grammar-engine.js";
+import { KazakhHunspellEngine } from "./grammar/kazakh-hunspell-engine.js";
+import { KazakhRulesEngine } from "./grammar/kazakh-rules-engine.js";
 
 const transformSchema = z.object({
   action: z.enum(transformActions as [TransformAction, ...TransformAction[]]),
@@ -40,6 +43,16 @@ const grammarSchema = z.object({ text: z.string().trim().min(1).max(20_000) });
 
 interface GrammarChecker { check(text: string): Promise<Omit<GrammarCheckResponse, "operationId" | "durationMs">> }
 
+function createKazakhEngine(): KazakhGrammarEngine {
+  let spelling: KazakhHunspellEngine | undefined;
+  const dictionaryDirectory = process.env.KAZAKH_HUNSPELL_PATH?.trim();
+  if (dictionaryDirectory) {
+    try { spelling = KazakhHunspellEngine.fromDirectory(dictionaryDirectory); }
+    catch (error) { console.warn("[Bank AI] Kazakh Hunspell dictionary is unavailable.", error); }
+  }
+  return new KazakhGrammarEngine(spelling, new KazakhRulesEngine());
+}
+
 export function createApp(provider: AiProvider, staticDirectory?: string, grammarChecker?: GrammarChecker) {
   const app = express();
   app.disable("x-powered-by");
@@ -53,6 +66,7 @@ export function createApp(provider: AiProvider, staticDirectory?: string, gramma
 
   const grammar = grammarChecker ?? new GrammarService([
     new LanguageToolEngine(process.env.LANGUAGETOOL_URL?.trim() || "http://127.0.0.1:8081/v2/check"),
+    createKazakhEngine(),
     new LlmGrammarEngine(provider)
   ]);
 

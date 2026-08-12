@@ -8,6 +8,7 @@ import { createProvider } from "./provider.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 loadEnvironment({ path: path.resolve(currentDirectory, "../../../.env"), quiet: true });
+process.env.KAZAKH_HUNSPELL_PATH ??= path.resolve(currentDirectory, "../../desktop-host/vendor/grammar/hunspell-kk");
 
 const port = Number(process.env.BANK_AI_PORT ?? 3847);
 const host = "127.0.0.1";

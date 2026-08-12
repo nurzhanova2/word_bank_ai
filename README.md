@@ -188,7 +188,7 @@ npm run dist:win   # сборка Windows NSIS installer
 После успешной сборки установщик находится в:
 
 ```text
-packages/desktop-host/release/BankAI-Setup-0.2.0.exe
+packages/desktop-host/release/BankAI-Setup-0.3.0.exe
 ```
 
 ## API MVP
