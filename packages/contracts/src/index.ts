@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.1.2";
+export const APP_VERSION = "0.1.3";
 
 export const targetLanguages = ["ru", "kk", "en"] as const;
 export type TargetLanguage = (typeof targetLanguages)[number];

@@ -19,3 +19,11 @@ test("missing, duplicated and invented paragraph markers are rejected", () => {
   assert.throws(() => restoreParagraphBreaks(protection, `${protection.protectedText}${marker}`));
   assert.throws(() => restoreParagraphBreaks(protection, `${protection.protectedText}[[BANKAI:PAR:Z]]`));
 });
+
+test("horizontal whitespace added around a paragraph marker is discarded", () => {
+  const protection = protectParagraphBreaks("Первый.\rВторой.");
+  const marker = protection.entries[0]!.placeholder;
+  const modelResult = protection.protectedText.replace(marker, `  ${marker}\t `);
+
+  assert.equal(restoreParagraphBreaks(protection, modelResult), "Первый.\rВторой.");
+});

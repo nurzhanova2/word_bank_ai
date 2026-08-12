@@ -76,14 +76,33 @@ Word selection
 
 ```text
 local-runtime/src/
-├── actions/       prompt catalog и параметры действий
+├── actions/       prompt catalog, отдельные action-промпты и параметры
 ├── providers/     интерфейсы, mock и LiteLLM adapter
 ├── services/      TransformService orchestration
 └── validators/    защита реквизитов и проверка результата
 ```
 
-Промпты находятся в `packages/local-runtime/src/actions/prompts.ts`. Они не
-смешаны с HTTP-клиентом LiteLLM или валидацией результата.
+Фасад каталога находится в `packages/local-runtime/src/actions/prompts.ts`, а
+сами промпты — в `packages/local-runtime/src/actions/prompts/`:
+
+```text
+prompts/
+├── builder.ts     единый XML-контракт и общие приоритеты
+├── index.ts       типизированный каталог TransformAction → prompt
+├── rewrite.ts
+├── shorten.ts
+├── formalize.ts
+├── grammar.ts
+├── translate.ts
+├── expand.ts
+├── tone.ts
+└── summary.ts
+```
+
+Каждый prompt содержит разделы `role`, `priority`, `input_contract`, `task`,
+`allowed_changes`, `must_preserve`, `output_contract`, `examples` и
+`final_check`. На каждое действие заданы два коротких few-shot примера. Промпты
+не смешаны с HTTP-клиентом LiteLLM или валидацией результата.
 
 ## Структура Word Add-in
 
