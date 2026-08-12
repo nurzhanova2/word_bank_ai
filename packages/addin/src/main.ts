@@ -5,7 +5,7 @@ import {
   type TransformRequest
 } from "@bank-ai/contracts";
 import { checkGrammar, TransformApiError, transformText } from "./api/transform-client.js";
-import { appendComparisonParts, changedResultWordIndexes, comparisonParts, grammarComparisonParts, wordTokens } from "./diff/text-diff.js";
+import { appendComparisonParts, comparisonParts, grammarComparisonParts } from "./diff/text-diff.js";
 import { OfficeWordAdapter } from "./office/word-adapter.js";
 import { renderActions } from "./ui/action-renderer.js";
 import "./styles.css";
@@ -16,8 +16,6 @@ const statusElement = document.querySelector<HTMLParagraphElement>("#status")!;
 const statusHeadingElement = document.querySelector<HTMLElement>("#status-heading")!;
 const previewElement = document.querySelector<HTMLElement>("#preview")!;
 const changesElement = document.querySelector<HTMLParagraphElement>("#changes")!;
-const originalElement = document.querySelector<HTMLParagraphElement>("#original")!;
-const resultElement = document.querySelector<HTMLParagraphElement>("#result")!;
 const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 const versionElement = document.querySelector<HTMLElement>("#app-version")!;
@@ -31,47 +29,7 @@ let pendingResult = "";
 let pendingAction: TransformAction | undefined;
 let pendingSourceOoxml = "";
 
-function highlightedResultFragment(source: string, result: string): DocumentFragment {
-  const resultWords = wordTokens(result);
-  const changed = changedResultWordIndexes(source, result);
-  const fragment = document.createDocumentFragment();
-  let offset = 0;
-  resultWords.forEach((token, index) => {
-    fragment.append(document.createTextNode(result.slice(offset, token.start)));
-    if (changed.has(index)) {
-      const mark = document.createElement("mark");
-      mark.className = "change-token";
-      mark.textContent = token.value;
-      mark.title = "Изменено AI";
-      fragment.append(mark);
-    } else fragment.append(document.createTextNode(token.value));
-    offset = token.end;
-  });
-  fragment.append(document.createTextNode(result.slice(offset)));
-  return fragment;
-}
-
-function highlightedSourceFragment(source: string, result: string): DocumentFragment {
-  const sourceWords = wordTokens(source);
-  const changed = changedResultWordIndexes(result, source);
-  const fragment = document.createDocumentFragment();
-  let offset = 0;
-  sourceWords.forEach((token, index) => {
-    fragment.append(document.createTextNode(source.slice(offset, token.start)));
-    if (changed.has(index)) {
-      const mark = document.createElement("mark");
-      mark.className = "removed-token";
-      mark.textContent = token.value;
-      fragment.append(mark);
-    } else fragment.append(document.createTextNode(token.value));
-    offset = token.end;
-  });
-  fragment.append(document.createTextNode(source.slice(offset)));
-  return fragment;
-}
-
 function renderHighlightedResult(source: string, result: string): void {
-  resultElement.replaceChildren(highlightedResultFragment(source, result));
   renderComparison(comparisonParts(source, result));
 }
 
@@ -90,7 +48,6 @@ function renderGrammarComparison(
   result: string,
   issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]
 ): void {
-  resultElement.replaceChildren(highlightedResultFragment(source, result));
   const parts = grammarComparisonParts(source, issues);
   renderComparison(parts);
   [...changesElement.querySelectorAll<HTMLElement>("mark")].forEach((mark, index) => {
@@ -104,8 +61,6 @@ function resetPreview(): void {
   pendingResult = "";
   pendingAction = undefined;
   pendingSourceOoxml = "";
-  originalElement.textContent = "";
-  resultElement.textContent = "";
   changesElement.textContent = "";
   grammarMetaElement.hidden = true;
   grammarIssuesElement.hidden = true;
@@ -173,7 +128,6 @@ async function transform(action: TransformAction): Promise<void> {
       pendingResult = grammar.correctedText === text ? "" : grammar.correctedText;
       pendingAction = action;
       pendingSourceOoxml = selection.ooxml;
-      originalElement.textContent = text;
       renderGrammarComparison(text, grammar.correctedText, grammar.issues);
       renderGrammarIssues(grammar.issues);
       grammarMetaElement.textContent = `Язык: ${languageLabels[grammar.language]}. Проверка: ${grammar.engines.join(" + ") || "нет доступного движка"}. Ошибок: ${grammar.issues.length}.`;
@@ -193,12 +147,9 @@ async function transform(action: TransformAction): Promise<void> {
     pendingResult = response.result;
     pendingAction = action;
     pendingSourceOoxml = selection.ooxml;
-    originalElement.textContent = text;
     const prefix = getActionDefinition(action).resultPrefix;
     if (prefix) {
       const appended = `${prefix} ${response.result}`;
-      const finalDocument = `${text}\n\n${appended}`;
-      resultElement.replaceChildren(highlightedResultFragment(text, finalDocument));
       renderComparison(appendComparisonParts(text, appended));
     } else renderHighlightedResult(text, response.result);
     previewElement.hidden = false;
@@ -225,15 +176,6 @@ async function transformWithTone(): Promise<void> {
   else renderedActions.optionSelects.set("tone", toneSelect);
   await transform("tone");
 }
-
-document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("is-active", item === tab));
-    changesElement.hidden = tab.dataset.tab !== "changes";
-    originalElement.hidden = tab.dataset.tab !== "original";
-    resultElement.hidden = tab.dataset.tab !== "result";
-  });
-});
 
 acceptButton.addEventListener("click", async () => {
   if (!pendingResult || !pendingAction) return;
