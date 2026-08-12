@@ -46,3 +46,10 @@ test("rejects non-Kazakh calls so the common engine can select a fallback", asyn
   assert.equal(engine.supports("ru"), false);
   await assert.rejects(() => engine.check("текст", "ru"), /қолдамайды/u);
 });
+
+test("accepts the correct banking plural Реквизиттер and rejects split-word suggestions", async () => {
+  const engine = new KazakhHunspellEngine(dictionary(["өзгерген", "жоқ"], { белгісіз: ["белгі сіз", "белгісіздік"] }));
+  assert.deepEqual(await engine.check("Реквизиттер өзгерген жоқ.", "kk"), []);
+  const [issue] = await engine.check("белгісіз", "kk");
+  assert.deepEqual(issue?.replacements, ["белгісіздік"]);
+});

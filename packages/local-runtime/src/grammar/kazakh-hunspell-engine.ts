@@ -17,7 +17,8 @@ const upperCase = /^\p{Lu}{2,}$/u;
 const protectedPattern = /https?:\/\/\S+|\b[\w.+-]+@[\w.-]+\.\w+\b|\b(?=[\p{L}\d-]*\d)[\p{L}\d-]{4,}\b/giu;
 
 const defaultWhitelist = [
-  "Bank AI", "BankAI", "QazBank", "банкомат", "банкинг", "финтех", "онлайн", "офлайн"
+  "Bank AI", "BankAI", "QazBank", "банкомат", "банкинг", "финтех", "онлайн", "офлайн",
+  "реквизит", "реквизиттер"
 ];
 
 function protectedRanges(text: string): Array<{ start: number; end: number }> {
@@ -71,7 +72,7 @@ export class KazakhHunspellEngine implements GrammarEngine {
         original,
         message: "Қазақ сөздігінде мұндай сөз табылмады.",
         category: "spelling",
-        replacements: this.dictionary.suggest(original).slice(0, 5),
+        replacements: this.dictionary.suggest(original).filter((suggestion) => !/\s/u.test(suggestion)).slice(0, 5),
         confidence: 0.86,
         source: this.name,
         ruleId: "KK_HUNSPELL_UNKNOWN_WORD"

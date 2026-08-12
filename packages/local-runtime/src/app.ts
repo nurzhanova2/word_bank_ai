@@ -64,11 +64,11 @@ export function createApp(provider: AiProvider, staticDirectory?: string, gramma
     response.json(body);
   });
 
+  const llmReview = provider.name === "mock" ? undefined : new LlmGrammarEngine(provider);
   const grammar = grammarChecker ?? new GrammarService([
     new LanguageToolEngine(process.env.LANGUAGETOOL_URL?.trim() || "http://127.0.0.1:8081/v2/check"),
-    createKazakhEngine(),
-    new LlmGrammarEngine(provider)
-  ]);
+    createKazakhEngine()
+  ], llmReview);
 
   app.post("/api/v1/grammar/check", async (request, response) => {
     const operationId = crypto.randomUUID();

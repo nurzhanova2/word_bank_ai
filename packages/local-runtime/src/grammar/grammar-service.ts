@@ -14,7 +14,10 @@ export function applyGrammarIssues(text: string, issues: readonly GrammarIssue[]
 }
 
 export class GrammarService {
-  constructor(private readonly engines: readonly GrammarEngine[]) {}
+  constructor(
+    private readonly engines: readonly GrammarEngine[],
+    private readonly reviewer?: GrammarEngine
+  ) {}
 
   async check(text: string): Promise<GrammarCheckResult> {
     const segments = segmentByLanguage(text);
@@ -33,6 +36,30 @@ export class GrammarService {
         }
       }
     }
+    if (this.reviewer) {
+      const detectedForReview = detectTextLanguage(text);
+      const reviewLanguage = detectedForReview === "ru" || detectedForReview === "kk" || detectedForReview === "en"
+        ? detectedForReview
+        : segments[0]?.language ?? "ru";
+      try {
+        const reviewIssues = await this.reviewer.check(text, reviewLanguage);
+        engines.add(this.reviewer.name);
+        issues.push(...reviewIssues);
+      } catch {
+        // AI-review является необязательным: локальные результаты остаются доступны.
+      }
+    }
+    const unique = new Map<string, GrammarIssue>();
+    for (const issue of issues) {
+      const key = `${issue.offset}:${issue.length}`;
+      const current = unique.get(key);
+      const issueActionable = issue.replacements[0] !== undefined;
+      const currentActionable = current?.replacements[0] !== undefined;
+      if (!current || (issueActionable && !currentActionable) || (issueActionable === currentActionable && issue.confidence > current.confidence)) {
+        unique.set(key, issue);
+      }
+    }
+    issues.splice(0, issues.length, ...unique.values());
     issues.sort((left, right) => left.offset - right.offset);
     const detected = detectTextLanguage(text);
     const language = new Set(segments.map((segment) => segment.language)).size > 1 ? "mixed" : detected;

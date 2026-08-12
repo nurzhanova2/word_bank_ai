@@ -1,41 +1,60 @@
 import type { AiProvider } from "../providers/types.js";
 import type { GrammarEngine, GrammarIssue, TextLanguage } from "./types.js";
+import { diffArrays } from "diff";
 
-function changedRange(source: string, result: string): { offset: number; sourceLength: number; replacement: string } | undefined {
-  if (source === result) return undefined;
-  let prefix = 0;
-  while (prefix < source.length && prefix < result.length && source[prefix] === result[prefix]) prefix += 1;
-  let suffix = 0;
-  while (
-    suffix < source.length - prefix && suffix < result.length - prefix
-    && source[source.length - suffix - 1] === result[result.length - suffix - 1]
-  ) suffix += 1;
-  return {
-    offset: prefix,
-    sourceLength: source.length - prefix - suffix,
-    replacement: result.slice(prefix, result.length - suffix)
-  };
+interface TextToken { value: string; start: number; end: number }
+const protectedTerms = new Set(["реквизит", "реквизиты", "реквизиттер", "iban", "бин", "иин", "бик"]);
+
+function tokens(text: string): TextToken[] {
+  return [...text.matchAll(/[\p{L}\p{N}]+|[^\p{L}\p{N}]/gu)].map((match) => ({
+    value: match[0], start: match.index, end: match.index + match[0].length
+  }));
+}
+
+function contextualIssues(source: string, result: string): GrammarIssue[] {
+  const sourceTokens = tokens(source);
+  const resultTokens = tokens(result);
+  const changes = diffArrays(sourceTokens.map(({ value }) => value), resultTokens.map(({ value }) => value));
+  const issues: GrammarIssue[] = [];
+  let sourceIndex = 0;
+  for (let index = 0; index < changes.length; index += 1) {
+    const change = changes[index]!;
+    if (!change.added && !change.removed) { sourceIndex += change.value.length; continue; }
+    if (change.added) continue;
+    const removed = change.value;
+    const next = changes[index + 1];
+    const added = next?.added ? next.value : [];
+    const first = sourceTokens[sourceIndex];
+    const last = sourceTokens[sourceIndex + removed.length - 1];
+    sourceIndex += removed.length;
+    if (!first || !last) continue;
+    const original = source.slice(first.start, last.end);
+    const replacement = added.join("");
+    const normalized = original.toLocaleLowerCase().trim();
+    if (protectedTerms.has(normalized) || (!/\s/u.test(original) && /\s/u.test(replacement.trim()))) continue;
+    issues.push({
+      offset: first.start,
+      length: last.end - first.start,
+      original,
+      message: "Контекстное исправление, найденное AI после локальной проверки.",
+      category: "grammar",
+      replacements: [replacement],
+      confidence: 0.72,
+      source: "llm-review",
+      ruleId: "LLM_CONTEXTUAL_CORRECTION"
+    });
+    if (next?.added) index += 1;
+  }
+  return issues;
 }
 
 export class LlmGrammarEngine implements GrammarEngine {
-  readonly name = "llm-fallback";
+  readonly name = "llm-review";
   constructor(private readonly provider: AiProvider) {}
   supports(_language: TextLanguage): boolean { return true; }
 
-  async check(text: string): Promise<GrammarIssue[]> {
+  async check(text: string, _language: TextLanguage): Promise<GrammarIssue[]> {
     const corrected = await this.provider.transform("grammar", text);
-    const change = changedRange(text, corrected);
-    if (!change) return [];
-    return [{
-      offset: change.offset,
-      length: change.sourceLength,
-      original: text.slice(change.offset, change.offset + change.sourceLength),
-      message: "Контекстное исправление грамматики и пунктуации.",
-      category: "grammar",
-      replacements: [change.replacement],
-      confidence: 0.7,
-      source: this.name,
-      ruleId: "LLM_CONTEXTUAL_CORRECTION"
-    }];
+    return contextualIssues(text, corrected);
   }
 }
