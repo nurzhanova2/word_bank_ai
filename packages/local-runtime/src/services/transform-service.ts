@@ -26,7 +26,8 @@ export class TransformService implements AiProvider {
         : "Сохрани каждый защищённый маркер без изменений ровно один раз."
       : "Не добавляй числа, ссылки, адреса электронной почты или иные реквизиты.";
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    const maxAttempts = action === "translate" ? 3 : 2;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const correction = attempt === 0
         ? ""
         : action === "summary"
@@ -37,7 +38,7 @@ export class TransformService implements AiProvider {
         modeInstruction,
         markerInstruction,
         layoutProtection.entries.length > 0
-          ? "Маркеры вида ⟦BANKAI_PAR_X⟧ обозначают границы абзацев. Сохрани каждый такой маркер ровно один раз и не меняй его."
+          ? "Маркеры вида [[BANKAI:PAR:X]] обозначают границы абзацев. Сохрани каждый такой маркер ровно один раз и не меняй его."
           : "",
         "Обрабатывай только содержимое между тегами <source> и </source>. Не включай теги в ответ.",
         `<source>\n${protection.protectedText}\n</source>`

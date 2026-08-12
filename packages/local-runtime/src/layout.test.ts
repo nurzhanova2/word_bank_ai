@@ -17,5 +17,5 @@ test("missing, duplicated and invented paragraph markers are rejected", () => {
 
   assert.throws(() => restoreParagraphBreaks(protection, protection.protectedText.replace(marker, " ")));
   assert.throws(() => restoreParagraphBreaks(protection, `${protection.protectedText}${marker}`));
-  assert.throws(() => restoreParagraphBreaks(protection, `${protection.protectedText}⟦BANKAI_PAR_Z⟧`));
+  assert.throws(() => restoreParagraphBreaks(protection, `${protection.protectedText}[[BANKAI:PAR:Z]]`));
 });

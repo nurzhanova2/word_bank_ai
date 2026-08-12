@@ -33,7 +33,7 @@ interface RequisiteMatch {
   priority: number;
 }
 
-const placeholderPattern = /⟦BANKAI_[A-Z]+⟧/gu;
+const placeholderPattern = /\[\[BANKAI:[A-Z]+\]\]/gu;
 
 const directPatterns: readonly { kind: RequisiteKind; pattern: RegExp; priority: number }[] = [
   { kind: "url", pattern: /https?:\/\/[^\s<>"']+/giu, priority: 100 },
@@ -111,7 +111,7 @@ export function protectRequisites(text: string): RequisiteProtection {
   let cursor = 0;
   let protectedText = "";
   for (const match of collectMatches(text)) {
-    const placeholder = `⟦BANKAI_${alphabeticId(entries.length)}⟧`;
+    const placeholder = `[[BANKAI:${alphabeticId(entries.length)}]]`;
     protectedText += text.slice(cursor, match.start) + placeholder;
     entries.push({ placeholder, value: match.value, kind: match.kind });
     cursor = match.end;

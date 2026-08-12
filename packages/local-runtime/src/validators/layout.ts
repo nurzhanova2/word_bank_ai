@@ -8,7 +8,7 @@ export interface ParagraphBreakProtection {
   entries: ParagraphBreakEntry[];
 }
 
-const paragraphMarkerPattern = /⟦BANKAI_PAR_[A-Z]+⟧/gu;
+const paragraphMarkerPattern = /\[\[BANKAI:PAR:[A-Z]+\]\]/gu;
 
 function alphabeticId(index: number): string {
   let value = index + 1;
@@ -24,7 +24,7 @@ function alphabeticId(index: number): string {
 export function protectParagraphBreaks(text: string): ParagraphBreakProtection {
   const entries: ParagraphBreakEntry[] = [];
   const protectedText = text.replace(/\r\n|\r|\n/gu, (value) => {
-    const placeholder = `⟦BANKAI_PAR_${alphabeticId(entries.length)}⟧`;
+    const placeholder = `[[BANKAI:PAR:${alphabeticId(entries.length)}]]`;
     entries.push({ placeholder, value });
     return placeholder;
   });

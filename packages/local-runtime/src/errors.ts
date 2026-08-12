@@ -37,7 +37,7 @@ export class ProviderUnavailableError extends RuntimeError {
 }
 
 export class ResultValidationError extends RuntimeError {
-  constructor() { super("RESULT_VALIDATION_FAILED", 422, "AI вернул результат, который не прошёл проверку реквизитов. Повторите попытку.", true); }
+  constructor() { super("RESULT_VALIDATION_FAILED", 422, "AI вернул результат, который не прошёл проверку защищённых данных или структуры абзацев. Повторите попытку.", true); }
 }
 
 export interface ApiFailure {

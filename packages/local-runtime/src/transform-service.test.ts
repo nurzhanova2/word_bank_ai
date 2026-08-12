@@ -35,7 +35,7 @@ test("transform service retries when a strict action loses a protected marker", 
     async complete(request) {
       attempts += 1;
       const source = protectedSource(request);
-      return attempts === 1 ? source.replace(/⟦BANKAI_[A-Z]+⟧/u, "") : source;
+      return attempts === 1 ? source.replace(/\[\[BANKAI:[A-Z]+\]\]/u, "") : source;
     }
   };
   const source = "Письмо № 88 направлено 11.08.2026.";
@@ -50,11 +50,50 @@ test("transform service retries when the model removes a paragraph boundary", as
     async complete(request) {
       attempts += 1;
       const source = protectedSource(request);
-      return attempts === 1 ? source.replace(/⟦BANKAI_PAR_[A-Z]+⟧/u, " ") : source;
+      return attempts === 1 ? source.replace(/\[\[BANKAI:PAR:[A-Z]+\]\]/u, " ") : source;
     }
   };
   const source = "Первый абзац.\rВторой абзац.";
 
   assert.equal(await new TransformService(completionProvider).transform("rewrite", source), source);
   assert.equal(attempts, 2);
+});
+
+test("translation uses tokenizer-stable ASCII markers for requisites and paragraphs", async () => {
+  let protectedInput = "";
+  const completionProvider: CompletionProvider = {
+    name: "ascii-markers",
+    async complete(request) {
+      protectedInput = protectedSource(request);
+      return protectedInput;
+    }
+  };
+  const source = "Договор № 417.\rСрок: 20.08.2026.";
+
+  assert.equal(
+    await new TransformService(completionProvider).transform("translate", source, { targetLanguage: "kk" }),
+    source
+  );
+  assert.match(protectedInput, /\[\[BANKAI:[A-Z]+\]\]/u);
+  assert.match(protectedInput, /\[\[BANKAI:PAR:[A-Z]+\]\]/u);
+  assert.doesNotMatch(protectedInput, /[⟦⟧]/u);
+});
+
+test("translation gets a third recovery attempt after two invalid model responses", async () => {
+  let attempts = 0;
+  const completionProvider: CompletionProvider = {
+    name: "translation-recovery",
+    async complete(request) {
+      attempts += 1;
+      const source = protectedSource(request);
+      return attempts < 3 ? source.replace(/\[\[BANKAI:[A-Z]+\]\]/u, "") : source;
+    }
+  };
+  const source = "Договор № 417 действует.";
+
+  assert.equal(
+    await new TransformService(completionProvider).transform("translate", source, { targetLanguage: "kk" }),
+    source
+  );
+  assert.equal(attempts, 3);
 });
