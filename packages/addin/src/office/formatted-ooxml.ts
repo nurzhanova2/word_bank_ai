@@ -7,24 +7,60 @@ function escapeXml(text: string): string {
     .replaceAll("'", "&apos;");
 }
 
-function replaceParagraphText(paragraph: string, text: string): string | undefined {
-  let replacedFirst = false;
-  const replaced = paragraph.replace(
-    /<w:t(?<attributes>\s[^>]*)?>[\s\S]*?<\/w:t>/gu,
-    (_full, _attributes, _offset, _input, groups?: { attributes?: string }) => {
-      const attributes = groups?.attributes ?? "";
-      if (replacedFirst) return `<w:t${attributes}></w:t>`;
-      replacedFirst = true;
-      const withWhitespace = /\bxml:space=/u.test(attributes) ? attributes : `${attributes} xml:space="preserve"`;
-      return `<w:t${withWhitespace}>${escapeXml(text)}</w:t>`;
+function decodeXml(text: string): string {
+  return text
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&amp;", "&");
+}
+
+function wordCount(text: string): number {
+  return text.trim().match(/\S+/gu)?.length ?? 0;
+}
+
+function takeWords(text: string, count: number): [string, string] {
+  if (count <= 0) return ["", text];
+  let seen = 0;
+  for (const match of text.matchAll(/\S+\s*/gu)) {
+    seen += 1;
+    if (seen === count) {
+      const end = match.index! + match[0].length;
+      return [text.slice(0, end), text.slice(end)];
     }
-  );
-  return replacedFirst ? replaced : undefined;
+  }
+  return [text, ""];
+}
+
+function replaceParagraphText(paragraph: string, text: string): string | undefined {
+  const textNodes = [...paragraph.matchAll(/<w:t(?<attributes>\s[^>]*)?>(?<value>[\s\S]*?)<\/w:t>/gu)];
+  if (textNodes.length === 0) return text.length === 0 ? paragraph : undefined;
+
+  let remaining = text;
+  let cursor = 0;
+  let output = "";
+  for (let index = 0; index < textNodes.length; index += 1) {
+    const node = textNodes[index]!;
+    const isLast = index === textNodes.length - 1;
+    const originalWords = wordCount(decodeXml(node.groups?.value ?? ""));
+    const [chunk, rest] = isLast ? [remaining, ""] : takeWords(remaining, originalWords);
+    const attributes = node.groups?.attributes ?? "";
+    const needsPreserve = /^\s|\s$/u.test(chunk);
+    const normalizedAttributes = needsPreserve && !/\bxml:space=/u.test(attributes)
+      ? `${attributes} xml:space="preserve"`
+      : attributes;
+    const replacement = `<w:t${normalizedAttributes}>${escapeXml(chunk)}</w:t>`;
+    output += paragraph.slice(cursor, node.index!) + replacement;
+    cursor = node.index! + node[0].length;
+    remaining = rest;
+  }
+  return output + paragraph.slice(cursor);
 }
 
 export function replaceParagraphTextInOoxml(ooxml: string, resultText: string): string | undefined {
   const paragraphs = [...ooxml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/gu)];
-  const lines = resultText.replaceAll("\r\n", "\n").split("\n");
+  const lines = resultText.split(/\r\n|\r|\n/u);
   if (paragraphs.length === 0 || paragraphs.length !== lines.length) return undefined;
 
   let cursor = 0;

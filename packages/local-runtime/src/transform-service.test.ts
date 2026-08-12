@@ -42,3 +42,19 @@ test("transform service retries when a strict action loses a protected marker", 
   assert.equal(await new TransformService(completionProvider).transform("rewrite", source), source);
   assert.equal(attempts, 2);
 });
+
+test("transform service retries when the model removes a paragraph boundary", async () => {
+  let attempts = 0;
+  const completionProvider: CompletionProvider = {
+    name: "layout-retry",
+    async complete(request) {
+      attempts += 1;
+      const source = protectedSource(request);
+      return attempts === 1 ? source.replace(/⟦BANKAI_PAR_[A-Z]+⟧/u, " ") : source;
+    }
+  };
+  const source = "Первый абзац.\rВторой абзац.";
+
+  assert.equal(await new TransformService(completionProvider).transform("rewrite", source), source);
+  assert.equal(attempts, 2);
+});

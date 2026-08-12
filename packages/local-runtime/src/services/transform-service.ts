@@ -4,6 +4,7 @@ import { optionInstruction } from "../actions/options.js";
 import { actionPrompts } from "../actions/prompts.js";
 import type { AiProvider, CompletionProvider } from "../providers/types.js";
 import { protectRequisites, restoreProtectedResult } from "../validators/requisites.js";
+import { protectParagraphBreaks, restoreParagraphBreaks } from "../validators/layout.js";
 import { isAcceptableResult } from "../validators/result.js";
 
 export class TransformService implements AiProvider {
@@ -14,7 +15,10 @@ export class TransformService implements AiProvider {
   }
 
   async transform(action: TransformAction, text: string, options: TransformOptions = {}): Promise<string> {
-    const protection = protectRequisites(text);
+    const layoutProtection = action === "summary"
+      ? { protectedText: text, entries: [] }
+      : protectParagraphBreaks(text);
+    const protection = protectRequisites(layoutProtection.protectedText);
     const modeInstruction = optionInstruction(action, options);
     const markerInstruction = protection.entries.length > 0
       ? action === "summary"
@@ -32,6 +36,9 @@ export class TransformService implements AiProvider {
         correction,
         modeInstruction,
         markerInstruction,
+        layoutProtection.entries.length > 0
+          ? "Маркеры вида ⟦BANKAI_PAR_X⟧ обозначают границы абзацев. Сохрани каждый такой маркер ровно один раз и не меняй его."
+          : "",
         "Обрабатывай только содержимое между тегами <source> и </source>. Не включай теги в ответ.",
         `<source>\n${protection.protectedText}\n</source>`
       ].filter(Boolean).join("\n\n");
@@ -43,9 +50,10 @@ export class TransformService implements AiProvider {
       });
 
       try {
-        const result = restoreProtectedResult(protection, protectedResult, {
+        const requisitesRestored = restoreProtectedResult(protection, protectedResult, {
           requireAll: action !== "summary"
         });
+        const result = restoreParagraphBreaks(layoutProtection, requisitesRestored);
         if (isAcceptableResult(action, text, result)) return result;
       } catch {
         // Повторяем запрос с корректирующей инструкцией.
