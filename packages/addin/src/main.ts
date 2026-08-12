@@ -1,4 +1,5 @@
 import {
+  APP_VERSION,
   getActionDefinition,
   type TransformAction,
   type TransformRequest
@@ -19,6 +20,8 @@ const originalElement = document.querySelector<HTMLParagraphElement>("#original"
 const resultElement = document.querySelector<HTMLParagraphElement>("#result")!;
 const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
+const versionElement = document.querySelector<HTMLElement>("#app-version")!;
+versionElement.textContent = `v${APP_VERSION}`;
 
 let pendingResult = "";
 let pendingAction: TransformAction | undefined;

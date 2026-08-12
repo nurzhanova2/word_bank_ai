@@ -160,7 +160,7 @@ const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) app.quit();
 else {
   app.on("second-instance", () => {
-    dialog.showMessageBox({ type: "info", title: "Bank AI for Word", message: `Приложение уже запущено. Статус: ${runtime?.state.status ?? "запускается"}.` }).catch(() => undefined);
+    dialog.showMessageBox({ type: "info", title: "Bank AI for Word", message: `Версия ${app.getVersion()} уже запущена. Статус: ${runtime?.state.status ?? "запускается"}.` }).catch(() => undefined);
   });
   app.whenReady().then(bootstrap).catch((error) => {
     dialog.showErrorBox("Bank AI", error instanceof Error ? error.message : String(error));

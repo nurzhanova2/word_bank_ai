@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  APP_VERSION,
   actionDefinitions,
   getActionDefinition,
   transformActions
@@ -18,6 +19,10 @@ test("the action registry is the single complete source of action metadata", () 
     assert.ok(definition.description.length > 0);
     assert.ok(actionPrompts[action].length > 0);
   }
+});
+
+test("release version is available to every client through contracts", () => {
+  assert.equal(APP_VERSION, "0.1.1");
 });
 
 test("action behavior and options are declared instead of hard-coded in clients", () => {

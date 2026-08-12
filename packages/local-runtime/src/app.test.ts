@@ -7,6 +7,19 @@ import { createApp } from "./app.js";
 import { MockAiProvider } from "./provider.js";
 import { ProviderAuthenticationError, ResultValidationError } from "./errors.js";
 
+test("health exposes the current application version", async () => {
+  const server = createApp(new MockAiProvider()).listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    const body = await response.json() as { version: string };
+    assert.equal(body.version, "0.1.1");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 test("API accepts every action declared in the shared registry", async () => {
   const server = createApp(new MockAiProvider()).listen(0, "127.0.0.1");
   await once(server, "listening");

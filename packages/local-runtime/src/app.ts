@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  APP_VERSION,
   getActionDefinition,
   transformActions,
   type ApiError,
@@ -38,7 +39,7 @@ export function createApp(provider: AiProvider, staticDirectory?: string) {
   app.use(express.json({ limit: "64kb" }));
 
   app.get("/health", (_request, response) => {
-    const body: HealthResponse = { status: "ok", version: "0.1.0", provider: provider.name };
+    const body: HealthResponse = { status: "ok", version: APP_VERSION, provider: provider.name };
     response.json(body);
   });
 
