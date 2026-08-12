@@ -1,4 +1,4 @@
-import type { ApiError, TransformRequest, TransformResponse } from "@bank-ai/contracts";
+import type { ApiError, GrammarCheckResponse, TransformRequest, TransformResponse } from "@bank-ai/contracts";
 
 export class TransformApiError extends Error {
   constructor(
@@ -27,6 +27,25 @@ export async function transformText(
     throw new TransformApiError(
       error?.message ?? "Локальный API вернул некорректный ответ.",
       error?.code ?? "API_ERROR",
+      error?.retryable ?? false,
+      error?.operationId
+    );
+  }
+  return body;
+}
+
+export async function checkGrammar(text: string, fetcher: typeof fetch = fetch): Promise<GrammarCheckResponse> {
+  const response = await fetcher("/api/v1/grammar/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  const body = await response.json() as GrammarCheckResponse | ApiError;
+  if (!response.ok || "error" in body) {
+    const error = "error" in body ? body.error : undefined;
+    throw new TransformApiError(
+      error?.message ?? "Сервис проверки грамматики вернул некорректный ответ.",
+      error?.code ?? "GRAMMAR_API_ERROR",
       error?.retryable ?? false,
       error?.operationId
     );

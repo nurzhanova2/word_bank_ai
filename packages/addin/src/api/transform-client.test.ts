@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { TransformRequest } from "@bank-ai/contracts";
-import { TransformApiError, transformText } from "./transform-client.js";
+import { checkGrammar, TransformApiError, transformText } from "./transform-client.js";
 
 const request: TransformRequest = { action: "rewrite", text: "Исходный текст" };
 
@@ -33,4 +33,18 @@ test("transform client preserves API error code and retryability", async () => {
       && error.retryable
       && error.operationId === "op-2"
   );
+});
+
+test("grammar client returns typed issues from the dedicated endpoint", async () => {
+  const fetcher: typeof fetch = async (url) => {
+    assert.equal(url, "/api/v1/grammar/check");
+    return new Response(JSON.stringify({
+      operationId: "grammar-1", language: "ru", correctedText: "Оплата была получена.",
+      engines: ["languagetool"], durationMs: 18,
+      issues: [{ offset: 7, length: 4, original: "были", message: "Согласование", category: "grammar", replacements: ["была"], confidence: .9, source: "languagetool", ruleId: "RULE" }]
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const result = await checkGrammar("Оплата были получена.", fetcher);
+  assert.equal(result.language, "ru");
+  assert.equal(result.issues[0]?.source, "languagetool");
 });

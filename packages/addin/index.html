@@ -9,16 +9,19 @@
   <body>
     <main class="shell">
       <header class="app-bar">
-        <img src="/assets/icon.svg" alt="" />
-        <strong>Bank AI <small id="app-version"></small></strong>
+        <strong>Bank AI</strong>
+        <span class="window-actions" aria-hidden="true"><span>⌄</span><span>×</span></span>
       </header>
 
       <div class="content">
-        <section class="hero">
+        <section class="hero card-surface">
           <div class="hero-copy">
-            <span class="eyebrow">WORD ASSISTANT</span>
-            <h1>Bank AI</h1>
-            <p>Ускорьте работу с документами с помощью AI-ассистента.</p>
+            <div class="brand-line">
+              <img class="brand-icon" src="/assets/icon.svg" alt="" />
+              <div><h1>Bank AI <small id="app-version"></small></h1><p>AI-помощник для работы с документами</p></div>
+            </div>
+            <div class="ready-pill"><span></span><strong id="status-heading">Готов к работе</strong></div>
+            <p id="status" class="status" role="status">Выделите текст и выберите действие.</p>
           </div>
           <img class="hero-image" src="/assets/assistant-hero.png" alt="Документ с AI-помощником" />
         </section>
@@ -28,29 +31,31 @@
           <div id="actions" class="actions" aria-label="AI-действия"></div>
         </section>
 
-        <section class="section-block" aria-labelledby="status-title">
-          <h2 id="status-title" class="section-title">Состояние</h2>
-          <div class="status-card">
-            <span class="status-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m6.5 12.5 3.5 3.5 7.5-8" /></svg>
-            </span>
-            <div>
-              <strong id="status-heading">Готово к работе</strong>
-              <p id="status" class="status" role="status">Выделите текст в документе и выберите действие.</p>
-            </div>
+        <section class="tone-panel" aria-label="Изменение тона">
+          <label for="tone-select">Тон текста</label>
+          <div class="tone-actions">
+            <select id="tone-select" aria-label="Тон текста">
+              <option value="neutral">Нейтральный</option><option value="polite">Вежливый</option>
+              <option value="strict">Строгий</option><option value="diplomatic">Дипломатичный</option>
+            </select>
+            <button id="tone-apply" type="button">Изменить</button>
           </div>
         </section>
 
         <section id="preview" class="section-block preview is-empty" aria-labelledby="preview-title">
           <h2 id="preview-title" class="section-title">Сравнение изменений <span class="info" title="Проверьте результат перед применением">i</span></h2>
-          <div class="comparison-card">
-            <h3>Было</h3>
-            <p id="original" data-placeholder="Здесь будет исходный текст…"></p>
+          <div class="comparison-tabs" role="tablist">
+            <button class="is-active" type="button" data-tab="changes">Изменения</button>
+            <button type="button" data-tab="original">Было</button>
+            <button type="button" data-tab="result">Стало</button>
           </div>
-          <div class="comparison-card">
-            <h3>Стало</h3>
-            <p id="result" data-placeholder="Здесь будет изменённый текст…"></p>
+          <div class="comparison-card comparison-body">
+            <p id="changes" data-placeholder="Здесь появится сравнение текста…"></p>
+            <p id="original" hidden data-placeholder="Здесь будет исходный текст…"></p>
+            <p id="result" hidden data-placeholder="Здесь будет изменённый текст…"></p>
           </div>
+          <div id="grammar-meta" class="grammar-meta" hidden></div>
+          <div id="grammar-issues" class="grammar-issues" hidden></div>
           <div class="decision-row">
             <button id="reject" class="secondary" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M5.5 9A8 8 0 1 1 5 16" /></svg>
@@ -65,8 +70,7 @@
       </div>
 
       <footer>
-        <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg>Настройки</span>
-        <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.2.9-1.2 1.8M12 17h.01" /></svg>Справка</span>
+        <span>⚙ Настройки</span><span>ⓘ Справка</span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

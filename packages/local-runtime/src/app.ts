@@ -7,6 +7,7 @@ import {
   transformActions,
   type ApiError,
   type HealthResponse,
+  type GrammarCheckResponse,
   type TransformAction,
   type TransformResponse
 } from "@bank-ai/contracts";
@@ -15,6 +16,9 @@ import express from "express";
 import { z } from "zod";
 import type { AiProvider } from "./provider.js";
 import { toApiFailure } from "./errors.js";
+import { GrammarService } from "./grammar/grammar-service.js";
+import { LanguageToolEngine } from "./grammar/languagetool-engine.js";
+import { LlmGrammarEngine } from "./grammar/llm-grammar-engine.js";
 
 const transformSchema = z.object({
   action: z.enum(transformActions as [TransformAction, ...TransformAction[]]),
@@ -32,7 +36,11 @@ const transformSchema = z.object({
   }
 });
 
-export function createApp(provider: AiProvider, staticDirectory?: string) {
+const grammarSchema = z.object({ text: z.string().trim().min(1).max(20_000) });
+
+interface GrammarChecker { check(text: string): Promise<Omit<GrammarCheckResponse, "operationId" | "durationMs">> }
+
+export function createApp(provider: AiProvider, staticDirectory?: string, grammarChecker?: GrammarChecker) {
   const app = express();
   app.disable("x-powered-by");
   app.use(cors({ origin: ["https://localhost:3847", "https://127.0.0.1:3847"] }));
@@ -41,6 +49,29 @@ export function createApp(provider: AiProvider, staticDirectory?: string) {
   app.get("/health", (_request, response) => {
     const body: HealthResponse = { status: "ok", version: APP_VERSION, provider: provider.name };
     response.json(body);
+  });
+
+  const grammar = grammarChecker ?? new GrammarService([
+    new LanguageToolEngine(process.env.LANGUAGETOOL_URL?.trim() || "http://127.0.0.1:8081/v2/check"),
+    new LlmGrammarEngine(provider)
+  ]);
+
+  app.post("/api/v1/grammar/check", async (request, response) => {
+    const operationId = crypto.randomUUID();
+    const parsed = grammarSchema.safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Выделите текст длиной до 20 000 символов.", retryable: false, operationId } });
+      return;
+    }
+    const startedAt = performance.now();
+    try {
+      const result = await grammar.check(parsed.data.text);
+      const body: GrammarCheckResponse = { operationId, ...result, durationMs: Math.round(performance.now() - startedAt) };
+      response.json(body);
+    } catch (error) {
+      const failure = toApiFailure(error, operationId);
+      response.status(failure.status).json(failure.body);
+    }
   });
 
   app.post("/api/v1/transform", async (request, response) => {

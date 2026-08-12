@@ -4,7 +4,7 @@ import {
   type TransformAction,
   type TransformRequest
 } from "@bank-ai/contracts";
-import { TransformApiError, transformText } from "./api/transform-client.js";
+import { checkGrammar, TransformApiError, transformText } from "./api/transform-client.js";
 import { changedResultWordIndexes, wordTokens } from "./diff/text-diff.js";
 import { OfficeWordAdapter } from "./office/word-adapter.js";
 import { renderActions } from "./ui/action-renderer.js";
@@ -14,20 +14,24 @@ const word = new OfficeWordAdapter();
 const renderedActions = renderActions(document.querySelector<HTMLElement>("#actions")!);
 const statusElement = document.querySelector<HTMLParagraphElement>("#status")!;
 const statusHeadingElement = document.querySelector<HTMLElement>("#status-heading")!;
-const statusCardElement = document.querySelector<HTMLElement>(".status-card")!;
 const previewElement = document.querySelector<HTMLElement>("#preview")!;
+const changesElement = document.querySelector<HTMLParagraphElement>("#changes")!;
 const originalElement = document.querySelector<HTMLParagraphElement>("#original")!;
 const resultElement = document.querySelector<HTMLParagraphElement>("#result")!;
 const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 const versionElement = document.querySelector<HTMLElement>("#app-version")!;
+const grammarMetaElement = document.querySelector<HTMLElement>("#grammar-meta")!;
+const grammarIssuesElement = document.querySelector<HTMLElement>("#grammar-issues")!;
+const toneSelect = document.querySelector<HTMLSelectElement>("#tone-select")!;
+const toneApplyButton = document.querySelector<HTMLButtonElement>("#tone-apply")!;
 versionElement.textContent = `v${APP_VERSION}`;
 
 let pendingResult = "";
 let pendingAction: TransformAction | undefined;
 let pendingSourceOoxml = "";
 
-function renderHighlightedResult(source: string, result: string): void {
+function highlightedResultFragment(source: string, result: string): DocumentFragment {
   const resultWords = wordTokens(result);
   const changed = changedResultWordIndexes(source, result);
   const fragment = document.createDocumentFragment();
@@ -44,7 +48,34 @@ function renderHighlightedResult(source: string, result: string): void {
     offset = token.end;
   });
   fragment.append(document.createTextNode(result.slice(offset)));
-  resultElement.replaceChildren(fragment);
+  return fragment;
+}
+
+function highlightedSourceFragment(source: string, result: string): DocumentFragment {
+  const sourceWords = wordTokens(source);
+  const changed = changedResultWordIndexes(result, source);
+  const fragment = document.createDocumentFragment();
+  let offset = 0;
+  sourceWords.forEach((token, index) => {
+    fragment.append(document.createTextNode(source.slice(offset, token.start)));
+    if (changed.has(index)) {
+      const mark = document.createElement("mark");
+      mark.className = "removed-token";
+      mark.textContent = token.value;
+      fragment.append(mark);
+    } else fragment.append(document.createTextNode(token.value));
+    offset = token.end;
+  });
+  fragment.append(document.createTextNode(source.slice(offset)));
+  return fragment;
+}
+
+function renderHighlightedResult(source: string, result: string): void {
+  resultElement.replaceChildren(highlightedResultFragment(source, result));
+  const arrow = document.createElement("span");
+  arrow.className = "change-arrow";
+  arrow.textContent = "  →  ";
+  changesElement.replaceChildren(highlightedSourceFragment(source, result), arrow, highlightedResultFragment(source, result));
 }
 
 function resetPreview(): void {
@@ -53,6 +84,11 @@ function resetPreview(): void {
   pendingSourceOoxml = "";
   originalElement.textContent = "";
   resultElement.textContent = "";
+  changesElement.textContent = "";
+  grammarMetaElement.hidden = true;
+  grammarIssuesElement.hidden = true;
+  grammarMetaElement.textContent = "";
+  grammarIssuesElement.replaceChildren();
   previewElement.hidden = false;
   previewElement.classList.add("is-empty");
   acceptButton.disabled = true;
@@ -62,6 +98,8 @@ function resetPreview(): void {
 function setBusy(isBusy: boolean): void {
   renderedActions.buttons.forEach((button) => (button.disabled = isBusy));
   renderedActions.optionSelects.forEach((select) => (select.disabled = isBusy));
+  toneSelect.disabled = isBusy;
+  toneApplyButton.disabled = isBusy;
   acceptButton.disabled = isBusy || !pendingResult;
   rejectButton.disabled = isBusy || !pendingResult;
 }
@@ -69,13 +107,27 @@ function setBusy(isBusy: boolean): void {
 function setStatus(message: string, isError = false): void {
   statusElement.textContent = message;
   statusElement.classList.toggle("error", isError);
-  statusCardElement.classList.toggle("is-error", isError);
-  statusCardElement.classList.toggle("is-busy", !isError && message.startsWith("Обрабатываем"));
   statusHeadingElement.textContent = isError
     ? "Требуется внимание"
     : message.startsWith("Обрабатываем")
       ? "Обработка текста"
       : message.startsWith("Готово за") ? "Результат готов" : "Готово к работе";
+}
+
+const languageLabels = { ru: "Русский", kk: "Қазақша", en: "English", mixed: "Смешанный", unknown: "Не определён" } as const;
+
+function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]): void {
+  grammarIssuesElement.replaceChildren(...issues.slice(0, 12).map((issue) => {
+    const card = document.createElement("article");
+    card.className = "grammar-issue";
+    const title = document.createElement("strong");
+    title.textContent = `${issue.original || "Фрагмент"} → ${issue.replacements[0] || "Проверьте фрагмент"}`;
+    const explanation = document.createElement("p");
+    explanation.textContent = issue.message;
+    card.append(title, explanation);
+    return card;
+  }));
+  grammarIssuesElement.hidden = issues.length === 0;
 }
 
 function errorMessage(error: unknown): string {
@@ -93,6 +145,21 @@ async function transform(action: TransformAction): Promise<void> {
     const selection = await word.getSelectedContent();
     const text = selection.text;
     if (!text) throw new Error("Сначала выделите текст в документе Word.");
+
+    if (action === "grammar") {
+      const grammar = await checkGrammar(text);
+      pendingResult = grammar.correctedText === text ? "" : grammar.correctedText;
+      pendingAction = action;
+      pendingSourceOoxml = selection.ooxml;
+      originalElement.textContent = text;
+      renderHighlightedResult(text, grammar.correctedText);
+      renderGrammarIssues(grammar.issues);
+      grammarMetaElement.textContent = `Язык: ${languageLabels[grammar.language]}. Проверка: ${grammar.engines.join(" + ") || "нет доступного движка"}. Ошибок: ${grammar.issues.length}.`;
+      grammarMetaElement.hidden = false;
+      previewElement.classList.remove("is-empty");
+      setStatus(`Готово за ${grammar.durationMs} мс. Найдено ошибок: ${grammar.issues.length}.`);
+      return;
+    }
 
     const payload: TransformRequest = { action, text };
     const option = getActionDefinition(action).option;
@@ -119,6 +186,26 @@ async function transform(action: TransformAction): Promise<void> {
 
 renderedActions.buttons.forEach((button) => {
   button.addEventListener("click", () => void transform(button.dataset.action as TransformAction));
+});
+
+toneApplyButton.addEventListener("click", () => {
+  void transformWithTone();
+});
+
+async function transformWithTone(): Promise<void> {
+  const virtualSelect = renderedActions.optionSelects.get("tone");
+  if (virtualSelect) virtualSelect.value = toneSelect.value;
+  else renderedActions.optionSelects.set("tone", toneSelect);
+  await transform("tone");
+}
+
+document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach((item) => item.classList.toggle("is-active", item === tab));
+    changesElement.hidden = tab.dataset.tab !== "changes";
+    originalElement.hidden = tab.dataset.tab !== "original";
+    resultElement.hidden = tab.dataset.tab !== "result";
+  });
 });
 
 acceptButton.addEventListener("click", async () => {

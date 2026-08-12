@@ -19,6 +19,7 @@ export interface RenderedActions {
 export function renderActions(container: HTMLElement): RenderedActions {
   container.replaceChildren();
   for (const definition of actionDefinitions) {
+    if (definition.id === "tone") continue;
     const card = document.createElement(definition.option ? "div" : "button");
     card.className = `action-card${definition.option ? " action-card-option" : ""}`;
     if (card instanceof HTMLButtonElement) {

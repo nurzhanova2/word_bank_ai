@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.1.4";
+export const APP_VERSION = "0.2.0";
 
 export const targetLanguages = ["ru", "kk", "en"] as const;
 export type TargetLanguage = (typeof targetLanguages)[number];
@@ -110,4 +110,31 @@ export interface HealthResponse {
   status: "ok";
   version: string;
   provider: string;
+}
+
+export type TextLanguage = "ru" | "kk" | "en";
+export type DetectedLanguage = TextLanguage | "mixed" | "unknown";
+export type GrammarCategory = "spelling" | "grammar" | "punctuation" | "style" | "terminology";
+
+export interface GrammarIssue {
+  offset: number;
+  length: number;
+  original: string;
+  message: string;
+  category: GrammarCategory;
+  replacements: string[];
+  confidence: number;
+  source: string;
+  ruleId: string;
+}
+
+export interface GrammarCheckRequest { text: string }
+
+export interface GrammarCheckResponse {
+  operationId: string;
+  language: DetectedLanguage;
+  correctedText: string;
+  issues: GrammarIssue[];
+  engines: string[];
+  durationMs: number;
 }

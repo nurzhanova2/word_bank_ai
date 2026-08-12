@@ -5,3 +5,4 @@ release/
 *.log
 .DS_Store
 .office-addin-dev-certs/
+packages/desktop-host/vendor/grammar/

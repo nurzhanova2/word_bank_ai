@@ -16,6 +16,7 @@ import {
 import { registerSettingsIpc } from "./ipc/settings-ipc.js";
 import { ConfigService } from "./services/config-service.js";
 import { RuntimeManager, type RuntimeState } from "./services/runtime-manager.js";
+import { LanguageToolManager } from "./services/language-tool-manager.js";
 import { WordAddInInstaller } from "./services/word-addin-installer.js";
 import { settingsPage } from "./settings-page.js";
 
@@ -27,6 +28,7 @@ let tray: Tray | undefined;
 let settingsWindow: BrowserWindow | undefined;
 let runtime: RuntimeManager | undefined;
 let wordInstaller: WordAddInInstaller | undefined;
+let languageTool: LanguageToolManager | undefined;
 
 function resourcePath(packagedName: string, developmentPath: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, packagedName) : path.resolve(app.getAppPath(), developmentPath);
@@ -142,6 +144,8 @@ async function bootstrap(): Promise<void> {
   tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 }));
   tray.on("double-click", () => void shell.openExternal(`https://localhost:${PORT}/health`));
   const config = new ConfigService(configPath());
+  languageTool = new LanguageToolManager(resourcePath("grammar", "vendor/grammar"));
+  await languageTool.start();
   runtime = new RuntimeManager(config, addinPath(), PORT, "127.0.0.1", updateTrayMenu);
   wordInstaller = new WordAddInInstaller(
     async (file, args) => {
@@ -169,4 +173,4 @@ else {
 }
 
 app.on("window-all-closed", () => undefined);
-app.on("before-quit", () => { void runtime?.stop(); });
+app.on("before-quit", () => { languageTool?.stop(); void runtime?.stop(); });
