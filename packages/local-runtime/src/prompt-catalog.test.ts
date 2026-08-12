@@ -3,6 +3,7 @@ import { readdir } from "node:fs/promises";
 import test from "node:test";
 import { transformActions } from "@bank-ai/contracts";
 import { actionPrompts } from "./actions/prompts.js";
+import { PROMPT_CATALOG_VERSION } from "./actions/prompts/index.js";
 
 const requiredSections = [
   "role",
@@ -64,4 +65,11 @@ test("summary prompt has deterministic size bands and keeps actor-action links",
   assert.match(prompt, /более 500 слов/u);
   assert.match(prompt, /исполнител/u);
   assert.match(prompt, /не объединяй/iu);
+});
+
+test("prompt catalog is independently versioned and exposes its version to every action", () => {
+  assert.match(PROMPT_CATALOG_VERSION, /^\d{4}\.\d{2}\.\d+$/u);
+  for (const action of transformActions) {
+    assert.match(actionPrompts[action], new RegExp(`<version>${PROMPT_CATALOG_VERSION.replaceAll(".", "\\.")}</version>`, "u"));
+  }
 });

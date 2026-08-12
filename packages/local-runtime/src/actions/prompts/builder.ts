@@ -1,3 +1,5 @@
+import { PROMPT_CATALOG_VERSION } from "./version.js";
+
 export interface PromptExample {
   label: "change" | "preserve";
   input: string;
@@ -68,6 +70,7 @@ export function buildActionPrompt(definition: ActionPromptDefinition): string {
     ? "Не изменяй включённые в результат факты, имена, названия, числа, даты, суммы, ссылки и реквизиты."
     : "Сохрани все факты, имена, названия, числа, даты, суммы, ссылки и реквизиты.";
   return [
+    ["<prompt_metadata>", `<version>${PROMPT_CATALOG_VERSION}</version>`, "</prompt_metadata>"].join("\n"),
     section("role", role),
     section("priority", priority),
     section("input_contract", inputContract),

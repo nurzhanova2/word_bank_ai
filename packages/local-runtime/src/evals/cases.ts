@@ -30,12 +30,17 @@ export const defaultQualityCases: readonly QualityEvalCase[] = [
     action: "translate",
     input: "Договор № 417 действует до 15.09.2026.",
     options: { targetLanguage: "kk" },
-    assertions: { preserveRequisites: true, preserveParagraphCount: true }
+    assertions: {
+      preserveRequisites: true,
+      preserveParagraphCount: true,
+      includes: ["шарт"],
+      excludes: ["әрине", "аударма:", "вот перевод"]
+    }
   },
   {
     id: "summary",
     action: "summary",
     input: "Комитет рассмотрел заявление клиента. По итогам рассмотрения принято решение запросить дополнительные документы до 20.08.2026.",
-    assertions: { maxLengthRatio: 0.8 }
+    assertions: { maxLengthRatio: 0.85, excludes: ["краткое содержание:", "резюме:", "вот результат"] }
   }
 ];

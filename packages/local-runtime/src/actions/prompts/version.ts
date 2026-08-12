@@ -1,0 +1,1 @@
+export const PROMPT_CATALOG_VERSION = "2026.08.2";

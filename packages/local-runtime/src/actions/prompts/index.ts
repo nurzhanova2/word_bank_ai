@@ -8,6 +8,8 @@ import { summaryPrompt } from "./summary.js";
 import { tonePrompt } from "./tone.js";
 import { translatePrompt } from "./translate.js";
 
+export { PROMPT_CATALOG_VERSION } from "./version.js";
+
 export const actionPrompts: Record<TransformAction, string> = {
   rewrite: rewritePrompt,
   shorten: shortenPrompt,

@@ -8,6 +8,7 @@ export interface QualityAssertions {
   minLengthRatio?: number;
   maxLengthRatio?: number;
   includes?: readonly string[];
+  excludes?: readonly string[];
 }
 
 export interface QualityEvalCase {
@@ -82,6 +83,12 @@ export function evaluateOutput(testCase: QualityEvalCase, output: string): Quali
   }
   for (const expected of assertions.includes ?? []) {
     checks.push({ id: `includes:${expected}`, passed: output.toLocaleLowerCase().includes(expected.toLocaleLowerCase()) });
+  }
+  for (const forbidden of assertions.excludes ?? []) {
+    checks.push({
+      id: `excludes:${forbidden}`,
+      passed: !output.toLocaleLowerCase().includes(forbidden.toLocaleLowerCase())
+    });
   }
   return checks;
 }
