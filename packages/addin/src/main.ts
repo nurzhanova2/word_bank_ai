@@ -5,7 +5,7 @@ import {
   type TransformRequest
 } from "@bank-ai/contracts";
 import { checkGrammar, TransformApiError, transformText } from "./api/transform-client.js";
-import { changedResultWordIndexes, wordTokens } from "./diff/text-diff.js";
+import { changedResultWordIndexes, grammarComparisonParts, wordTokens } from "./diff/text-diff.js";
 import { OfficeWordAdapter } from "./office/word-adapter.js";
 import { renderActions } from "./ui/action-renderer.js";
 import "./styles.css";
@@ -76,6 +76,22 @@ function renderHighlightedResult(source: string, result: string): void {
   arrow.className = "change-arrow";
   arrow.textContent = "  →  ";
   changesElement.replaceChildren(highlightedSourceFragment(source, result), arrow, highlightedResultFragment(source, result));
+}
+
+function renderGrammarComparison(
+  source: string,
+  result: string,
+  issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]
+): void {
+  resultElement.replaceChildren(highlightedResultFragment(source, result));
+  changesElement.replaceChildren(...grammarComparisonParts(source, issues).map((part) => {
+    if (part.kind === "plain") return document.createTextNode(part.text);
+    const mark = document.createElement("mark");
+    mark.className = part.kind === "removed" ? "removed-token" : part.kind === "added" ? "change-token" : "review-token";
+    mark.textContent = part.text;
+    mark.title = part.kind === "review" ? "Требуется ручная проверка" : part.kind === "removed" ? "Было" : "Стало";
+    return mark;
+  }));
 }
 
 function resetPreview(): void {
@@ -152,7 +168,7 @@ async function transform(action: TransformAction): Promise<void> {
       pendingAction = action;
       pendingSourceOoxml = selection.ooxml;
       originalElement.textContent = text;
-      renderHighlightedResult(text, grammar.correctedText);
+      renderGrammarComparison(text, grammar.correctedText, grammar.issues);
       renderGrammarIssues(grammar.issues);
       grammarMetaElement.textContent = `Язык: ${languageLabels[grammar.language]}. Проверка: ${grammar.engines.join(" + ") || "нет доступного движка"}. Ошибок: ${grammar.issues.length}.`;
       grammarMetaElement.hidden = false;

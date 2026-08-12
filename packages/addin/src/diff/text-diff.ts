@@ -1,7 +1,38 @@
+import type { GrammarIssue } from "@bank-ai/contracts";
+
 interface WordToken {
   value: string;
   start: number;
   end: number;
+}
+
+export interface GrammarComparisonPart {
+  kind: "plain" | "removed" | "added" | "review";
+  text: string;
+}
+
+export function grammarComparisonParts(source: string, issues: readonly GrammarIssue[]): GrammarComparisonPart[] {
+  const compatible: GrammarIssue[] = [];
+  for (const issue of [...issues]
+    .filter((candidate) => candidate.length > 0 && source.slice(candidate.offset, candidate.offset + candidate.length) === candidate.original)
+    .sort((left, right) => left.offset - right.offset || right.confidence - left.confidence)) {
+    const previous = compatible.at(-1);
+    if (!previous || issue.offset >= previous.offset + previous.length) compatible.push(issue);
+  }
+  const parts: GrammarComparisonPart[] = [];
+  let offset = 0;
+  for (const issue of compatible) {
+    if (issue.offset > offset) parts.push({ kind: "plain", text: source.slice(offset, issue.offset) });
+    const replacement = issue.replacements[0];
+    if (replacement === undefined) parts.push({ kind: "review", text: issue.original });
+    else {
+      parts.push({ kind: "removed", text: issue.original });
+      parts.push({ kind: "added", text: replacement });
+    }
+    offset = issue.offset + issue.length;
+  }
+  if (offset < source.length) parts.push({ kind: "plain", text: source.slice(offset) });
+  return parts;
 }
 
 export function wordTokens(text: string): WordToken[] {

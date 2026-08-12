@@ -39,3 +39,13 @@ test("LanguageTool supports Russian and English but deliberately rejects Kazakh"
   assert.equal(engine.supports("kk"), false);
   await assert.rejects(() => engine.check("Қате", "kk"), /не поддерживает/u);
 });
+
+test("prefers deletion for an accidental repeated word over LanguageTool's comma suggestion", async () => {
+  const fetcher: typeof fetch = async () => new Response(JSON.stringify({ matches: [{
+    message: "Глаголы — однородные члены предложения.", offset: 7, length: 17,
+    replacements: [{ value: "отправил, отправил" }],
+    rule: { id: "RU_VERB_REPEAT", issueType: "style", category: { id: "STYLE" } }
+  }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  const [issue] = await new LanguageToolEngine("http://local", fetcher).check("Клиент отправил отправил договор.", "ru");
+  assert.deepEqual(issue?.replacements, ["отправил"]);
+});

@@ -21,6 +21,14 @@ function categoryOf(match: LanguageToolMatch): GrammarCategory {
   return "grammar";
 }
 
+function replacementsFor(match: LanguageToolMatch, original: string): string[] {
+  const words = original.match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (words.length > 1 && words.every((word) => word.toLocaleLowerCase() === words[0]?.toLocaleLowerCase())) {
+    return [words[0]!];
+  }
+  return (match.replacements ?? []).slice(0, 5).map(({ value }) => value);
+}
+
 export class LanguageToolEngine implements GrammarEngine {
   readonly name = "languagetool";
 
@@ -43,16 +51,20 @@ export class LanguageToolEngine implements GrammarEngine {
     });
     if (!response.ok) throw new Error(`LanguageTool недоступен: HTTP ${response.status}.`);
     const payload = await response.json() as LanguageToolResponse;
-    return (payload.matches ?? []).map((match) => ({
-      offset: match.offset,
-      length: match.length,
-      original: text.slice(match.offset, match.offset + match.length),
-      message: match.message,
-      category: categoryOf(match),
-      replacements: (match.replacements ?? []).slice(0, 5).map(({ value }) => value),
-      confidence: match.replacements?.length ? 0.9 : 0.65,
-      source: this.name,
-      ruleId: match.rule.id
-    }));
+    return (payload.matches ?? []).map((match) => {
+      const original = text.slice(match.offset, match.offset + match.length);
+      const replacements = replacementsFor(match, original);
+      return {
+        offset: match.offset,
+        length: match.length,
+        original,
+        message: match.message,
+        category: categoryOf(match),
+        replacements,
+        confidence: replacements.length ? 0.9 : 0.65,
+        source: this.name,
+        ruleId: match.rule.id
+      };
+    });
   }
 }
