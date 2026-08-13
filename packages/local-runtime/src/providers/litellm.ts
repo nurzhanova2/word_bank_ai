@@ -32,6 +32,12 @@ export class LiteLlmCompletionProvider implements CompletionProvider {
       ],
       max_tokens: input.maxTokens,
       temperature: 0,
+      ...(input.responseFormat ? {
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: input.responseFormat.name, strict: true, schema: input.responseFormat.schema }
+        }
+      } : {}),
       chat_template_kwargs: { enable_thinking: false }
     } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
     try {

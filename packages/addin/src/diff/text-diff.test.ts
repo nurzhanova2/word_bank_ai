@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { changedResultWordIndexes, comparisonParts, grammarComparisonParts } from "./text-diff.js";
+import { applySelectedGrammarIssues, changedResultWordIndexes, comparisonParts, grammarComparisonParts } from "./text-diff.js";
 
 test("diff marks only inserted and replaced result words", () => {
   assert.deepEqual([...changedResultWordIndexes("Банк рассмотрел документ", "Банк быстро проверил документ")], [1, 2]);
@@ -42,4 +42,14 @@ test("transformation comparison is a single inline diff instead of two complete 
     { kind: "added", text: "быстро проверил " },
     { kind: "plain", text: "документ." }
   ]);
+});
+
+test("applies one selected correction without applying neighboring findings", () => {
+  const source = "Оплота приняты.";
+  const issues = [
+    { offset: 0, length: 6, original: "Оплота", message: "", category: "spelling" as const, replacements: ["Оплата"], confidence: .9, source: "qwen-json", ruleId: "1" },
+    { offset: 7, length: 7, original: "приняты", message: "", category: "grammar" as const, replacements: ["принята"], confidence: .9, source: "qwen-json", ruleId: "2" }
+  ];
+  assert.equal(applySelectedGrammarIssues(source, [issues[1]!]), "Оплота принята.");
+  assert.equal(applySelectedGrammarIssues(source, issues), "Оплата принята.");
 });

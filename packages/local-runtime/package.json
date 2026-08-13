@@ -1,6 +1,6 @@
 {
   "name": "@bank-ai/local-runtime",
-  "version": "0.3.4",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -26,7 +26,7 @@
     "eval": "tsx src/evals/run.ts"
   },
   "dependencies": {
-    "@bank-ai/contracts": "0.3.4",
+    "@bank-ai/contracts": "0.5.0",
     "cors": "^2.8.5",
     "diff": "^9.0.0",
     "dotenv": "^17.2.1",

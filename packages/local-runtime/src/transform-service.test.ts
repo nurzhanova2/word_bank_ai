@@ -9,6 +9,38 @@ function protectedSource(request: CompletionRequest): string {
   return match[1];
 }
 
+test("Qwen grammar fallback requests a strict JSON schema", async () => {
+  let capturedRequest: CompletionRequest | undefined;
+  const completionProvider: CompletionProvider = {
+    name: "qwen-capture",
+    async complete(request) {
+      capturedRequest = request;
+      return '{"version":1,"corrections":[]}';
+    }
+  };
+  await new TransformService(completionProvider).completeGrammarReview("Текст готов.", "ru");
+  assert.equal(capturedRequest?.responseFormat?.name, "bank_ai_grammar_review");
+  assert.equal(capturedRequest?.user, JSON.stringify({ language: "ru", source: "Текст готов." }));
+  assert.match(capturedRequest?.system ?? "", /offset.*UTF-16/u);
+});
+
+test("Qwen grammar JSON review masks requisites without shifting UTF-16 offsets", async () => {
+  let user = "";
+  const completionProvider: CompletionProvider = {
+    name: "qwen-private",
+    async complete(request) {
+      user = request.user;
+      return '{"version":1,"corrections":[]}';
+    }
+  };
+  const source = "IBAN KZ86125KZT1004100100 и оплота.";
+  await new TransformService(completionProvider).completeGrammarReview(source, "ru");
+  const sent = JSON.parse(user) as { source: string };
+  assert.equal(user.includes("KZ86125KZT1004100100"), false);
+  assert.equal(sent.source.length, source.length);
+  assert.equal(sent.source.indexOf("оплота"), source.indexOf("оплота"));
+});
+
 test("transform service sends masked requisites to the completion provider", async () => {
   let capturedRequest: CompletionRequest | undefined;
   const completionProvider: CompletionProvider = {

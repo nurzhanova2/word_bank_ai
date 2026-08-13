@@ -1,11 +1,12 @@
 import {
   APP_VERSION,
   getActionDefinition,
+  type GrammarIssue,
   type TransformAction,
   type TransformRequest
 } from "@bank-ai/contracts";
 import { checkGrammar, TransformApiError, transformText } from "./api/transform-client.js";
-import { appendComparisonParts, comparisonParts, grammarComparisonParts } from "./diff/text-diff.js";
+import { applySelectedGrammarIssues, appendComparisonParts, comparisonParts, grammarComparisonParts } from "./diff/text-diff.js";
 import { OfficeWordAdapter } from "./office/word-adapter.js";
 import { renderActions } from "./ui/action-renderer.js";
 import "./styles.css";
@@ -17,6 +18,7 @@ const statusHeadingElement = document.querySelector<HTMLElement>("#status-headin
 const previewElement = document.querySelector<HTMLElement>("#preview")!;
 const changesElement = document.querySelector<HTMLParagraphElement>("#changes")!;
 const acceptButton = document.querySelector<HTMLButtonElement>("#accept")!;
+const acceptLabelElement = document.querySelector<HTMLElement>("#accept-label")!;
 const rejectButton = document.querySelector<HTMLButtonElement>("#reject")!;
 const versionElement = document.querySelector<HTMLElement>("#app-version")!;
 const grammarMetaElement = document.querySelector<HTMLElement>("#grammar-meta")!;
@@ -28,6 +30,7 @@ versionElement.textContent = `v${APP_VERSION}`;
 let pendingResult = "";
 let pendingAction: TransformAction | undefined;
 let pendingSourceOoxml = "";
+let pendingGrammarSource = "";
 
 function renderHighlightedResult(source: string, result: string): void {
   renderComparison(comparisonParts(source, result));
@@ -61,6 +64,7 @@ function resetPreview(): void {
   pendingResult = "";
   pendingAction = undefined;
   pendingSourceOoxml = "";
+  pendingGrammarSource = "";
   changesElement.textContent = "";
   grammarMetaElement.hidden = true;
   grammarIssuesElement.hidden = true;
@@ -69,6 +73,7 @@ function resetPreview(): void {
   previewElement.hidden = false;
   previewElement.classList.add("is-empty");
   acceptButton.disabled = true;
+  acceptLabelElement.textContent = "Применить";
   rejectButton.disabled = true;
 }
 
@@ -79,6 +84,7 @@ function setBusy(isBusy: boolean): void {
   toneApplyButton.disabled = isBusy;
   acceptButton.disabled = isBusy || !pendingResult;
   rejectButton.disabled = isBusy || !pendingResult;
+  grammarIssuesElement.querySelectorAll<HTMLButtonElement>("button").forEach((button) => (button.disabled = isBusy));
 }
 
 function setStatus(message: string, isError = false): void {
@@ -93,6 +99,21 @@ function setStatus(message: string, isError = false): void {
 
 const languageLabels = { ru: "Русский", kk: "Қазақша", en: "English", mixed: "Смешанный", unknown: "Не определён" } as const;
 
+async function applyOneGrammarIssue(issue: GrammarIssue): Promise<void> {
+  const result = applySelectedGrammarIssues(pendingGrammarSource, [issue]);
+  if (!pendingGrammarSource || result === pendingGrammarSource) return;
+  try {
+    setBusy(true);
+    await word.replaceSelection(result, pendingSourceOoxml);
+    resetPreview();
+    setStatus("Исправление применено к документу.");
+  } catch {
+    setStatus("Word не смог применить выбранное исправление.", true);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]): void {
   grammarIssuesElement.replaceChildren(...issues.slice(0, 12).map((issue) => {
     const card = document.createElement("article");
@@ -102,6 +123,15 @@ function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["i
     const explanation = document.createElement("p");
     explanation.textContent = issue.message;
     card.append(title, explanation);
+    if (issue.replacements[0] !== undefined) {
+      const fixButton = document.createElement("button");
+      fixButton.type = "button";
+      fixButton.className = "grammar-fix-one";
+      fixButton.textContent = "Исправить";
+      fixButton.title = "Исправить эту ошибку";
+      fixButton.addEventListener("click", () => void applyOneGrammarIssue(issue));
+      card.append(fixButton);
+    }
     return card;
   }));
   grammarIssuesElement.hidden = issues.length === 0;
@@ -128,6 +158,8 @@ async function transform(action: TransformAction): Promise<void> {
       pendingResult = grammar.correctedText === text ? "" : grammar.correctedText;
       pendingAction = action;
       pendingSourceOoxml = selection.ooxml;
+      pendingGrammarSource = text;
+      acceptLabelElement.textContent = "Исправить всё";
       renderGrammarComparison(text, grammar.correctedText, grammar.issues);
       renderGrammarIssues(grammar.issues);
       grammarMetaElement.textContent = `Язык: ${languageLabels[grammar.language]}. Проверка: ${grammar.engines.join(" + ") || "нет доступного движка"}. Ошибок: ${grammar.issues.length}.`;

@@ -66,6 +66,18 @@ export function grammarComparisonParts(source: string, issues: readonly GrammarI
   return parts;
 }
 
+export function applySelectedGrammarIssues(source: string, issues: readonly GrammarIssue[]): string {
+  const compatible: GrammarIssue[] = [];
+  for (const issue of [...issues]
+    .filter((candidate) => candidate.replacements[0] !== undefined && source.slice(candidate.offset, candidate.offset + candidate.length) === candidate.original)
+    .sort((left, right) => left.offset - right.offset || right.confidence - left.confidence || right.length - left.length)) {
+    const previous = compatible.at(-1);
+    if (!previous || issue.offset >= previous.offset + previous.length) compatible.push(issue);
+  }
+  return compatible.sort((left, right) => right.offset - left.offset)
+    .reduce((text, issue) => `${text.slice(0, issue.offset)}${issue.replacements[0]}${text.slice(issue.offset + issue.length)}`, source);
+}
+
 export function wordTokens(text: string): WordToken[] {
   return [...text.matchAll(/[\p{L}\p{N}]+(?:[-’'][\p{L}\p{N}]+)*/gu)].map((match) => ({
     value: match[0],

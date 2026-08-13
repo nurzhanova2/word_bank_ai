@@ -1,6 +1,7 @@
 import type { AiProvider } from "../providers/types.js";
 import type { GrammarEngine, GrammarIssue, TextLanguage } from "./types.js";
 import { diffArrays } from "diff";
+import { parseQwenGrammarReview } from "./qwen-json-contract.js";
 
 interface TextToken { value: string; start: number; end: number }
 const protectedTerms = new Set(["реквизит", "реквизиты", "реквизиттер", "iban", "бин", "иин", "бик"]);
@@ -54,6 +55,10 @@ export class LlmGrammarEngine implements GrammarEngine {
   supports(_language: TextLanguage): boolean { return true; }
 
   async check(text: string, _language: TextLanguage): Promise<GrammarIssue[]> {
+    if (this.provider.completeGrammarReview) {
+      const response = await this.provider.completeGrammarReview(text, _language);
+      return parseQwenGrammarReview(response, text);
+    }
     const corrected = await this.provider.transform("grammar", text);
     return contextualIssues(text, corrected);
   }
