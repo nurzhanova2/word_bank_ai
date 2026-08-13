@@ -14,7 +14,7 @@ test("health exposes the current application version", async () => {
     const port = (server.address() as AddressInfo).port;
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     const body = await response.json() as { version: string };
-    assert.equal(body.version, "0.5.0");
+    assert.equal(body.version, "0.5.1");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }

@@ -1,6 +1,6 @@
 {
   "name": "@bank-ai/desktop-host",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Локальный Windows host для Bank AI Word Add-in",
   "author": "Bank AI",
   "private": true,
@@ -15,7 +15,7 @@
     "dist:win": "npm run prepare:grammar && electron-builder --win nsis --x64"
   },
   "dependencies": {
-    "@bank-ai/local-runtime": "0.5.0",
+    "@bank-ai/local-runtime": "0.5.1",
     "dotenv": "^17.2.1",
     "office-addin-dev-certs": "^2.0.10"
   },

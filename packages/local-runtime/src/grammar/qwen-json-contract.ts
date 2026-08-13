@@ -51,21 +51,27 @@ export function parseQwenGrammarReview(raw: string, sourceText: string): Grammar
   if (!parsed.success) throw new Error("JSON-ответ Qwen не соответствует контракту грамматической проверки.");
 
   const occupied: Array<{ start: number; end: number }> = [];
-  return parsed.data.corrections.map((correction, index) => {
-    const end = correction.offset + correction.original.length;
-    if (sourceText.slice(correction.offset, end) !== correction.original) {
-      throw new Error("Исправление Qwen указывает на неверный диапазон исходного текста.");
+  const issues: GrammarIssue[] = [];
+  parsed.data.corrections.forEach((correction, index) => {
+    let offset = correction.offset;
+    let end = offset + correction.original.length;
+    if (sourceText.slice(offset, end) !== correction.original) {
+      const first = sourceText.indexOf(correction.original);
+      const unique = first >= 0 && sourceText.indexOf(correction.original, first + 1) < 0;
+      if (!unique) return;
+      offset = first;
+      end = offset + correction.original.length;
     }
-    if (occupied.some((range) => correction.offset < range.end && end > range.start)) {
-      throw new Error("Исправления Qwen содержат пересекающиеся диапазоны.");
+    if (occupied.some((range) => offset < range.end && end > range.start)) {
+      return;
     }
     const normalized = correction.original.toLocaleLowerCase().trim();
     if (protectedTerms.has(normalized) || (!/\s/u.test(correction.original) && /\s/u.test(correction.replacement.trim()))) {
-      throw new Error("Qwen попытался изменить защищённый термин.");
+      return;
     }
-    occupied.push({ start: correction.offset, end });
-    return {
-      offset: correction.offset,
+    occupied.push({ start: offset, end });
+    issues.push({
+      offset,
       length: correction.original.length,
       original: correction.original,
       message: correction.message,
@@ -74,6 +80,7 @@ export function parseQwenGrammarReview(raw: string, sourceText: string): Grammar
       confidence: correction.confidence,
       source: "qwen-json",
       ruleId: `QWEN_JSON_${index + 1}`
-    };
-  }).sort((left, right) => left.offset - right.offset);
+    });
+  });
+  return issues.sort((left, right) => left.offset - right.offset);
 }

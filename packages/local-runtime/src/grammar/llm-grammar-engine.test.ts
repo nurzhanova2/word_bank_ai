@@ -28,13 +28,26 @@ test("accepts Qwen corrections only through the strict JSON contract", async () 
   ]);
 });
 
-test("rejects malformed JSON and corrections whose source range does not match", async () => {
+test("rejects malformed JSON", async () => {
   const malformed = new LlmGrammarEngine(structuredProvider("Оплата принята."));
   await assert.rejects(() => malformed.check("Оплота приняты.", "ru"), /JSON/u);
-  const mismatched = new LlmGrammarEngine(structuredProvider(JSON.stringify({ version: 1, corrections: [
-    { offset: 0, original: "Выдумано", replacement: "Оплата", message: "Ошибка", category: "spelling", confidence: 0.9 }
+});
+
+test("keeps valid Qwen corrections when another item has a bad range", async () => {
+  const review = new LlmGrammarEngine(structuredProvider(JSON.stringify({ version: 1, corrections: [
+    { offset: 999, original: "Выдумано", replacement: "Оплата", message: "Ошибка", category: "spelling", confidence: 0.9 },
+    { offset: 7, original: "приняты", replacement: "принята", message: "Согласование", category: "grammar", confidence: 0.9 }
   ] })));
-  await assert.rejects(() => mismatched.check("Оплота приняты.", "ru"), /диапазон/u);
+  const issues = await review.check("Оплота приняты.", "ru");
+  assert.deepEqual(issues.map(({ original }) => original), ["приняты"]);
+});
+
+test("repairs an inaccurate Qwen offset when the original fragment is unique", async () => {
+  const review = new LlmGrammarEngine(structuredProvider(JSON.stringify({ version: 1, corrections: [
+    { offset: 5, original: "приняты", replacement: "принята", message: "Согласование", category: "grammar", confidence: 0.9 }
+  ] })));
+  const [issue] = await review.check("Оплота приняты.", "ru");
+  assert.equal(issue?.offset, 7);
 });
 
 test("turns multiple contextual LLM corrections into separate exact issues", async () => {

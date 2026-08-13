@@ -31,6 +31,8 @@ let pendingResult = "";
 let pendingAction: TransformAction | undefined;
 let pendingSourceOoxml = "";
 let pendingGrammarSource = "";
+let pendingGrammarIssues: GrammarIssue[] = [];
+const appliedGrammarIssueIndexes = new Set<number>();
 
 function renderHighlightedResult(source: string, result: string): void {
   renderComparison(comparisonParts(source, result));
@@ -65,6 +67,8 @@ function resetPreview(): void {
   pendingAction = undefined;
   pendingSourceOoxml = "";
   pendingGrammarSource = "";
+  pendingGrammarIssues = [];
+  appliedGrammarIssueIndexes.clear();
   changesElement.textContent = "";
   grammarMetaElement.hidden = true;
   grammarIssuesElement.hidden = true;
@@ -84,7 +88,9 @@ function setBusy(isBusy: boolean): void {
   toneApplyButton.disabled = isBusy;
   acceptButton.disabled = isBusy || !pendingResult;
   rejectButton.disabled = isBusy || !pendingResult;
-  grammarIssuesElement.querySelectorAll<HTMLButtonElement>("button").forEach((button) => (button.disabled = isBusy));
+  grammarIssuesElement.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+    button.disabled = isBusy || button.dataset.applied === "true";
+  });
 }
 
 function setStatus(message: string, isError = false): void {
@@ -99,14 +105,18 @@ function setStatus(message: string, isError = false): void {
 
 const languageLabels = { ru: "Русский", kk: "Қазақша", en: "English", mixed: "Смешанный", unknown: "Не определён" } as const;
 
-async function applyOneGrammarIssue(issue: GrammarIssue): Promise<void> {
-  const result = applySelectedGrammarIssues(pendingGrammarSource, [issue]);
+async function applyOneGrammarIssue(issue: GrammarIssue, issueIndex: number): Promise<void> {
+  if (appliedGrammarIssueIndexes.has(issueIndex)) return;
+  const nextIndexes = new Set(appliedGrammarIssueIndexes).add(issueIndex);
+  const selectedIssues = pendingGrammarIssues.filter((_candidate, index) => nextIndexes.has(index));
+  const result = applySelectedGrammarIssues(pendingGrammarSource, selectedIssues);
   if (!pendingGrammarSource || result === pendingGrammarSource) return;
   try {
     setBusy(true);
     await word.replaceSelection(result, pendingSourceOoxml);
-    resetPreview();
-    setStatus("Исправление применено к документу.");
+    appliedGrammarIssueIndexes.add(issueIndex);
+    renderGrammarIssues(pendingGrammarIssues);
+    setStatus(`Исправлено: ${appliedGrammarIssueIndexes.size} из ${pendingGrammarIssues.filter((candidate) => candidate.replacements[0] !== undefined).length}. Остальные исправления доступны ниже.`);
   } catch {
     setStatus("Word не смог применить выбранное исправление.", true);
   } finally {
@@ -115,7 +125,7 @@ async function applyOneGrammarIssue(issue: GrammarIssue): Promise<void> {
 }
 
 function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["issues"]): void {
-  grammarIssuesElement.replaceChildren(...issues.slice(0, 12).map((issue) => {
+  grammarIssuesElement.replaceChildren(...issues.slice(0, 24).map((issue, issueIndex) => {
     const card = document.createElement("article");
     card.className = "grammar-issue";
     const title = document.createElement("strong");
@@ -127,9 +137,13 @@ function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["i
       const fixButton = document.createElement("button");
       fixButton.type = "button";
       fixButton.className = "grammar-fix-one";
-      fixButton.textContent = "Исправить";
+      const isApplied = appliedGrammarIssueIndexes.has(issueIndex);
+      fixButton.textContent = isApplied ? "Исправлено" : "Исправить";
       fixButton.title = "Исправить эту ошибку";
-      fixButton.addEventListener("click", () => void applyOneGrammarIssue(issue));
+      fixButton.dataset.applied = String(isApplied);
+      fixButton.disabled = isApplied;
+      card.classList.toggle("is-applied", isApplied);
+      fixButton.addEventListener("click", () => void applyOneGrammarIssue(issue, issueIndex));
       card.append(fixButton);
     }
     return card;
@@ -159,6 +173,7 @@ async function transform(action: TransformAction): Promise<void> {
       pendingAction = action;
       pendingSourceOoxml = selection.ooxml;
       pendingGrammarSource = text;
+      pendingGrammarIssues = grammar.issues;
       acceptLabelElement.textContent = "Исправить всё";
       renderGrammarComparison(text, grammar.correctedText, grammar.issues);
       renderGrammarIssues(grammar.issues);
@@ -226,9 +241,19 @@ acceptButton.addEventListener("click", async () => {
   }
 });
 
-rejectButton.addEventListener("click", () => {
-  resetPreview();
-  setStatus("Изменение отклонено. Документ не изменён.");
+rejectButton.addEventListener("click", async () => {
+  try {
+    setBusy(true);
+    if (pendingAction === "grammar" && appliedGrammarIssueIndexes.size > 0) {
+      await word.replaceSelection(pendingGrammarSource, pendingSourceOoxml);
+    }
+    resetPreview();
+    setStatus("Изменение отклонено. Исходный текст восстановлен.");
+  } catch {
+    setStatus("Word не смог восстановить исходный текст.", true);
+  } finally {
+    setBusy(false);
+  }
 });
 
 Office.onReady((info) => {

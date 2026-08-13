@@ -13,4 +13,15 @@ test("grammar UI exposes individual correction controls and Fix all", () => {
   const source = readFileSync(new URL("main.ts", import.meta.url), "utf8");
   assert.match(source, /Исправить всё/u);
   assert.match(source, /Исправить эту ошибку/u);
+  const handler = source.match(/async function applyOneGrammarIssue[\s\S]*?\n\}\n/u)?.[0] ?? "";
+  assert.doesNotMatch(handler, /resetPreview/u);
+  assert.match(handler, /appliedGrammarIssueIndexes/u);
+});
+
+test("narrow Word pane uses compact dimensions", () => {
+  const styles = readFileSync(new URL("styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.app-bar[^}]*height:44px/u);
+  assert.match(styles, /\.hero[^}]*min-height:112px/u);
+  assert.match(styles, /\.action-card[^}]*min-height:64px/u);
+  assert.match(styles, /\.comparison-card[^}]*max-height:280px/u);
 });
