@@ -55,6 +55,15 @@ test("falls back to the next compatible engine when LanguageTool is unavailable"
   assert.deepEqual(result.engines, ["llm"]);
 });
 
+test("does not apply review-only Hunspell suggestions", () => {
+  const source = "салаларында жоғары қарқын сақталды";
+  const issues: GrammarIssue[] = [{
+    offset: 0, length: 11, original: "салаларында", message: "Сөздік кандидаты", category: "spelling",
+    replacements: [], suggestions: ["балаларында"], autoApply: false, confidence: .55, source: "hunspell-kk", ruleId: "UNKNOWN"
+  }];
+  assert.equal(applyGrammarIssues(source, issues), source);
+});
+
 test("combines local findings with an LLM review and prefers an actionable contextual fix", async () => {
   const local = engine("languagetool", ["ru"], {
     offset: 10, length: 14, original: "были заполнено", message: "Согласование", category: "grammar",

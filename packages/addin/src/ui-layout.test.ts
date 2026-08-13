@@ -13,6 +13,7 @@ test("grammar UI exposes individual correction controls and Fix all", () => {
   const source = readFileSync(new URL("main.ts", import.meta.url), "utf8");
   assert.match(source, /Исправить всё/u);
   assert.match(source, /Исправить эту ошибку/u);
+  assert.match(source, /Варианты словаря/u);
   const handler = source.match(/async function applyOneGrammarIssue[\s\S]*?\n\}\n/u)?.[0] ?? "";
   assert.doesNotMatch(handler, /resetPreview/u);
   assert.match(handler, /appliedGrammarIssueIndexes/u);

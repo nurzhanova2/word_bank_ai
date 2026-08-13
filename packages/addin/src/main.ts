@@ -129,11 +129,16 @@ function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["i
     const card = document.createElement("article");
     card.className = "grammar-issue";
     const title = document.createElement("strong");
-    title.textContent = `${issue.original || "Фрагмент"} → ${issue.replacements[0] || "Проверьте фрагмент"}`;
+    title.textContent = issue.replacements[0] && issue.autoApply !== false
+      ? `${issue.original || "Фрагмент"} → ${issue.replacements[0]}`
+      : `${issue.original || "Фрагмент"} — требуется проверка`;
     const explanation = document.createElement("p");
-    explanation.textContent = issue.message;
+    const dictionarySuggestions = issue.suggestions?.length
+      ? ` Варианты словаря: ${issue.suggestions.join(", ")}. Они не применяются автоматически.`
+      : "";
+    explanation.textContent = `${issue.message}${dictionarySuggestions}`;
     card.append(title, explanation);
-    if (issue.replacements[0] !== undefined) {
+    if (issue.autoApply !== false && issue.replacements[0] !== undefined) {
       const fixButton = document.createElement("button");
       fixButton.type = "button";
       fixButton.className = "grammar-fix-one";

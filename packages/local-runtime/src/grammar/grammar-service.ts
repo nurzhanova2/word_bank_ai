@@ -4,7 +4,7 @@ import type { GrammarCheckResult, GrammarEngine, GrammarIssue } from "./types.js
 export function applyGrammarIssues(text: string, issues: readonly GrammarIssue[]): string {
   const compatible: GrammarIssue[] = [];
   for (const issue of [...issues]
-    .filter((issue) => issue.replacements[0] !== undefined && text.slice(issue.offset, issue.offset + issue.length) === issue.original)
+    .filter((issue) => issue.autoApply !== false && issue.replacements[0] !== undefined && text.slice(issue.offset, issue.offset + issue.length) === issue.original)
     .sort((left, right) => left.offset - right.offset || right.confidence - left.confidence || right.length - left.length)) {
     const previous = compatible.at(-1);
     if (!previous || issue.offset >= previous.offset + previous.length) compatible.push(issue);
@@ -53,8 +53,8 @@ export class GrammarService {
     for (const issue of issues) {
       const key = `${issue.offset}:${issue.length}`;
       const current = unique.get(key);
-      const issueActionable = issue.replacements[0] !== undefined;
-      const currentActionable = current?.replacements[0] !== undefined;
+      const issueActionable = issue.autoApply !== false && issue.replacements[0] !== undefined;
+      const currentActionable = current?.autoApply !== false && current?.replacements[0] !== undefined;
       if (!current || (issueActionable && !currentActionable) || (issueActionable === currentActionable && issue.confidence > current.confidence)) {
         unique.set(key, issue);
       }

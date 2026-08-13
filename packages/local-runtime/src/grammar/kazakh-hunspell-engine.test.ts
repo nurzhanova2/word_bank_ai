@@ -10,7 +10,7 @@ function dictionary(correctWords: string[], suggestions: Record<string, string[]
   };
 }
 
-test("reports a Kazakh misspelling with exact offsets and Hunspell suggestions", async () => {
+test("reports a Kazakh dictionary candidate without making it an automatic replacement", async () => {
   const engine = new KazakhHunspellEngine(dictionary(
     ["бұл", "дайын"],
     { кужат: ["құжат", "құжаты"] }
@@ -22,10 +22,12 @@ test("reports a Kazakh misspelling with exact offsets and Hunspell suggestions",
     offset: 4,
     length: 5,
     original: "кужат",
-    message: "Қазақ сөздігінде мұндай сөз табылмады.",
+    message: "Қазақ сөздігінде мұндай сөз табылмады. Автоматты ауыстыру өшірілген: сөз контексте дұрыс болуы мүмкін.",
     category: "spelling",
-    replacements: ["құжат", "құжаты"],
-    confidence: 0.86,
+    replacements: [],
+    suggestions: ["құжат", "құжаты"],
+    autoApply: false,
+    confidence: 0.55,
     source: "hunspell-kk",
     ruleId: "KK_HUNSPELL_UNKNOWN_WORD"
   }]);
@@ -51,5 +53,18 @@ test("accepts the correct banking plural Реквизиттер and rejects spli
   const engine = new KazakhHunspellEngine(dictionary(["өзгерген", "жоқ"], { белгісіз: ["белгі сіз", "белгісіздік"] }));
   assert.deepEqual(await engine.check("Реквизиттер өзгерген жоқ.", "kk"), []);
   const [issue] = await engine.check("белгісіз", "kk");
-  assert.deepEqual(issue?.replacements, ["белгісіздік"]);
+  assert.deepEqual(issue?.replacements, []);
+  assert.deepEqual(issue?.suggestions, ["белгісіздік"]);
+  assert.equal(issue?.autoApply, false);
+});
+
+test("never auto-replaces valid agglutinative forms with edit-distance neighbors", async () => {
+  const engine = new KazakhHunspellEngine(dictionary([], {
+    салаларында: ["балаларында"], секторға: ["векторға"], өсуіне: ["есіне"], жылдамдады: ["жылдамдада"]
+  }));
+  const source = "салаларында секторға өсуіне жылдамдады";
+  const issues = await engine.check(source, "kk");
+  assert.equal(issues.length, 4);
+  assert.ok(issues.every((issue) => issue.replacements.length === 0 && issue.autoApply === false));
+  assert.deepEqual(issues.map((issue) => issue.suggestions?.[0]), ["балаларында", "векторға", "есіне", "жылдамдада"]);
 });

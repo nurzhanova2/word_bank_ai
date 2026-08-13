@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.5.1";
+export const APP_VERSION = "0.5.2";
 
 export const targetLanguages = ["ru", "kk", "en"] as const;
 export type TargetLanguage = (typeof targetLanguages)[number];
@@ -123,6 +123,8 @@ export interface GrammarIssue {
   message: string;
   category: GrammarCategory;
   replacements: string[];
+  suggestions?: string[];
+  autoApply?: boolean;
   confidence: number;
   source: string;
   ruleId: string;

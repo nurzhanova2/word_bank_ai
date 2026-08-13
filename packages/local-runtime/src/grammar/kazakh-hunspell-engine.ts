@@ -66,14 +66,19 @@ export class KazakhHunspellEngine implements GrammarEngine {
         || this.dictionary.correct(original)
         || this.dictionary.correct(normalized)
       ) continue;
+      const suggestions = this.dictionary.suggest(original)
+        .filter((suggestion) => !/\s/u.test(suggestion))
+        .slice(0, 5);
       issues.push({
         offset,
         length: original.length,
         original,
-        message: "Қазақ сөздігінде мұндай сөз табылмады.",
+        message: "Қазақ сөздігінде мұндай сөз табылмады. Автоматты ауыстыру өшірілген: сөз контексте дұрыс болуы мүмкін.",
         category: "spelling",
-        replacements: this.dictionary.suggest(original).filter((suggestion) => !/\s/u.test(suggestion)).slice(0, 5),
-        confidence: 0.86,
+        replacements: [],
+        suggestions,
+        autoApply: false,
+        confidence: 0.55,
         source: this.name,
         ruleId: "KK_HUNSPELL_UNKNOWN_WORD"
       });
