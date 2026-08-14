@@ -7,45 +7,58 @@
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   </head>
   <body>
-    <main class="shell">
+    <main class="shell" data-layout="workbench">
       <header class="app-bar">
-        <strong>Bank AI</strong>
-        <span class="window-actions" aria-hidden="true"><span>⌄</span><span>×</span></span>
+        <div class="brand-lockup">
+          <img class="brand-icon" src="/assets/icon.svg" alt="" width="32" height="32" />
+          <div class="brand-copy">
+            <strong>Bank AI</strong>
+            <span id="app-version"></span>
+          </div>
+        </div>
+        <div class="ready-state">
+          <span class="status-dot" aria-hidden="true"></span>
+          <strong id="status-heading">Готов к работе</strong>
+        </div>
       </header>
 
       <div class="content">
-        <section class="hero card-surface">
-          <div class="hero-copy">
-            <div class="brand-line">
-              <img class="brand-icon" src="/assets/icon.svg" alt="" />
-              <div><h1>Bank AI <small id="app-version"></small></h1><p>AI-помощник для работы с документами</p></div>
+        <section class="context-strip" aria-label="Состояние помощника">
+          <p id="status" class="status" role="status" aria-live="polite">Выделите текст и выберите действие.</p>
+        </section>
+
+        <section class="workspace" aria-labelledby="actions-title">
+          <header class="workspace-heading">
+            <div>
+              <h1 id="actions-title">Работа с текстом</h1>
+              <p>Выберите действие для выделенного фрагмента.</p>
             </div>
-            <div class="ready-pill"><span></span><strong id="status-heading">Готов к работе</strong></div>
-            <p id="status" class="status" role="status">Выделите текст и выберите действие.</p>
-          </div>
-          <img class="hero-image" src="/assets/assistant-hero.png" alt="Документ с AI-помощником" />
-        </section>
-
-        <section class="section-block" aria-labelledby="actions-title">
-          <h2 id="actions-title" class="section-title">Быстрые действия</h2>
+            <span class="selection-hint">Word</span>
+          </header>
           <div id="actions" class="actions" aria-label="AI-действия"></div>
+
+          <section class="tone-panel" aria-label="Изменение тона">
+            <label for="tone-select">Тон текста</label>
+            <div class="tone-actions">
+              <select id="tone-select" aria-label="Тон текста">
+                <option value="neutral">Нейтральный</option><option value="polite">Вежливый</option>
+                <option value="strict">Строгий</option><option value="diplomatic">Дипломатичный</option>
+              </select>
+              <button id="tone-apply" type="button">Изменить</button>
+            </div>
+          </section>
         </section>
 
-        <section class="tone-panel" aria-label="Изменение тона">
-          <label for="tone-select">Тон текста</label>
-          <div class="tone-actions">
-            <select id="tone-select" aria-label="Тон текста">
-              <option value="neutral">Нейтральный</option><option value="polite">Вежливый</option>
-              <option value="strict">Строгий</option><option value="diplomatic">Дипломатичный</option>
-            </select>
-            <button id="tone-apply" type="button">Изменить</button>
-          </div>
-        </section>
-
-        <section id="preview" class="section-block preview is-empty" aria-labelledby="preview-title">
-          <h2 id="preview-title" class="section-title">Изменения <span class="info" title="Проверьте результат перед применением">i</span></h2>
+        <section id="preview" class="preview is-empty" aria-labelledby="preview-title">
+          <header class="preview-heading">
+            <div>
+              <h2 id="preview-title">Изменения</h2>
+              <p>Проверьте исправления перед применением.</p>
+            </div>
+            <span class="info" title="Удалённый текст отмечен красным, добавленный — зелёным">i</span>
+          </header>
           <div class="comparison-card comparison-body">
-            <p id="changes" data-placeholder="Здесь появится сравнение текста…"></p>
+            <p id="changes" data-placeholder="Результат появится здесь после обработки текста."></p>
           </div>
           <div id="grammar-meta" class="grammar-meta" hidden></div>
           <div id="grammar-issues" class="grammar-issues" hidden></div>
@@ -62,8 +75,9 @@
         </section>
       </div>
 
-      <footer>
-        <span>⚙ Настройки</span><span>ⓘ Справка</span>
+      <footer class="app-footer">
+        <span>Настройки — в приложении Bank AI</span>
+        <span>Локальная обработка</span>
       </footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

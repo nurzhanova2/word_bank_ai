@@ -82,6 +82,7 @@ function resetPreview(): void {
 }
 
 function setBusy(isBusy: boolean): void {
+  document.body.dataset.busy = String(isBusy);
   renderedActions.buttons.forEach((button) => (button.disabled = isBusy));
   renderedActions.optionSelects.forEach((select) => (select.disabled = isBusy));
   toneSelect.disabled = isBusy;
@@ -96,6 +97,7 @@ function setBusy(isBusy: boolean): void {
 function setStatus(message: string, isError = false): void {
   statusElement.textContent = message;
   statusElement.classList.toggle("error", isError);
+  statusHeadingElement.closest(".ready-state")?.classList.toggle("is-error", isError);
   statusHeadingElement.textContent = isError
     ? "Требуется внимание"
     : message.startsWith("Обрабатываем")

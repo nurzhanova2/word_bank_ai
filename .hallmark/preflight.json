@@ -1,0 +1,10 @@
+{
+  "date": "2026-08-14",
+  "target": "packages/addin",
+  "framework": "Vite + vanilla TypeScript",
+  "font_stack": "Bahnschrift + Aptos + Cascadia Mono",
+  "palette": "custom OKLCH tokens anchored on bank green",
+  "motion": "motion-cut with functional busy indicator and press feedback",
+  "spacing": "4-point named scale",
+  "preserved": ["Bank AI identity", "bank green", "existing actions", "preview and grammar flows"]
+}

@@ -19,10 +19,21 @@ test("grammar UI exposes individual correction controls and Fix all", () => {
   assert.match(handler, /appliedGrammarIssueIndexes/u);
 });
 
-test("narrow Word pane uses compact dimensions", () => {
+test("Hallmark Workbench layout removes the decorative hero and uses design tokens", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const styles = readFileSync(new URL("styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.app-bar[^}]*height:44px/u);
-  assert.match(styles, /\.hero[^}]*min-height:112px/u);
-  assert.match(styles, /\.action-card[^}]*min-height:64px/u);
-  assert.match(styles, /\.comparison-card[^}]*max-height:280px/u);
+  assert.match(html, /data-layout="workbench"/u);
+  assert.match(html, /class="workspace"/u);
+  assert.doesNotMatch(html, /assistant-hero\.png|class="hero/u);
+  assert.match(styles, /@import "\.\/tokens\.css"/u);
+  assert.match(styles, /Hallmark · macrostructure: Workbench/u);
+  assert.match(styles, /overflow-x:\s*clip/u);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/u);
+});
+
+test("narrow Word pane keeps actions and decisions touch accessible", () => {
+  const styles = readFileSync(new URL("styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.action-card[^}]*min-height:\s*48px/u);
+  assert.match(styles, /\.decision-row button[^}]*min-height:\s*44px/u);
+  assert.match(styles, /:focus-visible/u);
 });

@@ -1,0 +1,53 @@
+:root {
+  --color-paper: oklch(97.5% 0.008 155);
+  --color-paper-2: oklch(94.5% 0.012 155);
+  --color-paper-3: oklch(91% 0.014 155);
+  --color-ink: oklch(20% 0.018 155);
+  --color-ink-2: oklch(36% 0.016 155);
+  --color-muted: oklch(43% 0.014 155);
+  --color-rule: oklch(81% 0.014 155);
+  --color-rule-2: oklch(88% 0.011 155);
+  --color-accent: oklch(45% 0.145 153);
+  --color-accent-strong: oklch(37% 0.13 153);
+  --color-accent-ink: oklch(97% 0.008 155);
+  --color-focus: oklch(58% 0.19 153);
+  --color-success-soft: oklch(94% 0.03 153);
+  --color-error: oklch(48% 0.17 28);
+  --color-error-soft: oklch(95% 0.025 28);
+  --color-warning: oklch(52% 0.13 72);
+  --color-warning-soft: oklch(95% 0.035 80);
+
+  --font-display: "Bahnschrift", "Aptos Display", sans-serif;
+  --font-body: "Aptos", "Segoe UI", sans-serif;
+  --font-outlier: "Cascadia Mono", "Aptos", monospace;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+
+  --radius-control: 0.375rem;
+  --radius-card: 0.625rem;
+  --radius-pill: 999px;
+  --rule-thin: 1px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 100ms;
+  --dur-short: 180ms;
+  --dur-long: 300ms;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 200;
+}
