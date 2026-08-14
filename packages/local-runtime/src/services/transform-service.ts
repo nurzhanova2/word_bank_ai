@@ -10,6 +10,26 @@ import { protectParagraphBreaks, restoreParagraphBreaks } from "../validators/la
 import { isAcceptableResult } from "../validators/result.js";
 import { grammarReviewJsonSchema } from "../grammar/qwen-json-contract.js";
 
+const TRANSLATION_CHUNK_SIZE = 2_200;
+
+function splitTranslationAtParagraphs(text: string): string[] {
+  if (text.length <= TRANSLATION_CHUNK_SIZE) return [text];
+  const lines = text.match(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)?.filter(Boolean) ?? [text];
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const line of lines) {
+    if (current && current.length + line.length > TRANSLATION_CHUNK_SIZE) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += line;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 export class TransformService implements AiProvider {
   readonly name: string;
 
@@ -45,6 +65,22 @@ export class TransformService implements AiProvider {
   }
 
   async transform(action: TransformAction, text: string, options: TransformOptions = {}): Promise<string> {
+    if (action === "translate") {
+      const chunks = splitTranslationAtParagraphs(text);
+      if (chunks.length > 1) {
+        const translated: string[] = [];
+        for (const chunk of chunks) {
+          translated.push(/^\s*$/u.test(chunk) ? chunk : await this.transformSingle(action, chunk, options));
+        }
+        const result = translated.join("");
+        if (isAcceptableResult(action, text, result)) return result;
+        throw new ResultValidationError();
+      }
+    }
+    return this.transformSingle(action, text, options);
+  }
+
+  private async transformSingle(action: TransformAction, text: string, options: TransformOptions): Promise<string> {
     const layoutProtection = action === "summary"
       ? { protectedText: text, entries: [] }
       : protectParagraphBreaks(text);
@@ -78,7 +114,7 @@ export class TransformService implements AiProvider {
       const protectedResult = await this.completionProvider.complete({
         system: actionPrompts[action],
         user,
-        maxTokens: action === "summary" ? 3_500 : 2_000
+        maxTokens: action === "summary" || action === "translate" ? 3_500 : 2_000
       });
 
       try {

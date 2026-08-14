@@ -22,7 +22,7 @@ test("the action registry is the single complete source of action metadata", () 
 });
 
 test("release version is available to every client through contracts", () => {
-  assert.equal(APP_VERSION, "0.5.4");
+  assert.equal(APP_VERSION, "0.5.5");
 });
 
 test("action behavior and options are declared instead of hard-coded in clients", () => {

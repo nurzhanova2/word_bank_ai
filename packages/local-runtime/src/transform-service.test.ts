@@ -148,6 +148,29 @@ test("translation receives only the glossary for the selected target language", 
   assert.doesNotMatch(capturedRequest.user, /обращение\s*=>\s*request/u);
 });
 
+test("long translation is split at paragraph boundaries before calling the model", async () => {
+  const requestSources: string[] = [];
+  const completionProvider: CompletionProvider = {
+    name: "bounded-translation",
+    async complete(request) {
+      const source = protectedSource(request);
+      requestSources.push(source);
+      return source;
+    }
+  };
+  const paragraphs = Array.from(
+    { length: 8 },
+    (_, index) => `Paragraph ${index + 1}: ${"important banking text ".repeat(35)}${2026 + index}.`
+  );
+  const source = paragraphs.join("\r\n");
+
+  const result = await new TransformService(completionProvider).transform("translate", source, { targetLanguage: "kk" });
+
+  assert.equal(result, source);
+  assert.ok(requestSources.length > 1);
+  assert.ok(requestSources.every((chunk) => chunk.length <= 3_200));
+});
+
 test("source text cannot close its data envelope or inject user instructions", async () => {
   let capturedRequest: CompletionRequest | undefined;
   const completionProvider: CompletionProvider = {
