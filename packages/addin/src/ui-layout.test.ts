@@ -14,7 +14,7 @@ test("grammar UI exposes individual correction controls and Fix all", () => {
   assert.match(source, /Исправить всё/u);
   assert.match(source, /Исправить эту ошибку/u);
   assert.match(source, /Варианты словаря/u);
-  const handler = source.match(/async function applyOneGrammarIssue[\s\S]*?\n\}\n/u)?.[0] ?? "";
+  const handler = source.match(/async function applyOneGrammarIssue[\s\S]*?\r?\n\}\r?\n/u)?.[0] ?? "";
   assert.doesNotMatch(handler, /resetPreview/u);
   assert.match(handler, /appliedGrammarIssueIndexes/u);
 });
