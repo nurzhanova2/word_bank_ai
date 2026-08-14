@@ -18,6 +18,11 @@ interface ParagraphFormatting {
   spaceBefore: number | null;
 }
 
+interface ResolvedParagraphStyle extends ParagraphFormatting {
+  style: string;
+  font: FontFormatting;
+}
+
 export function copyFontFormatting(source: FontFormatting, target: FontFormatting): void {
   if (source.name != null) target.name = source.name;
   if (source.size != null) target.size = source.size;
@@ -31,6 +36,61 @@ export function copyParagraphFormatting(source: ParagraphFormatting, target: Par
   for (const key of ["firstLineIndent", "leftIndent", "rightIndent", "lineSpacing", "spaceAfter", "spaceBefore"] as const) {
     if (source[key] != null) target[key] = source[key];
   }
+}
+
+export function copyResolvedParagraphStyle(source: ResolvedParagraphStyle, target: ResolvedParagraphStyle): void {
+  if (source.style) target.style = source.style;
+  copyParagraphFormatting(source, target);
+  copyFontFormatting(source.font, target.font);
+}
+
+function snapshotParagraph(paragraph: Word.Paragraph, font = paragraph.font): ResolvedParagraphStyle {
+  return {
+    style: paragraph.style,
+    font: {
+      name: font.name as string | null,
+      size: font.size as number | null,
+      bold: font.bold as boolean | null,
+      italic: font.italic as boolean | null,
+      color: font.color as string | null
+    },
+    alignment: paragraph.alignment,
+    firstLineIndent: paragraph.firstLineIndent,
+    leftIndent: paragraph.leftIndent,
+    rightIndent: paragraph.rightIndent,
+    lineSpacing: paragraph.lineSpacing,
+    spaceAfter: paragraph.spaceAfter,
+    spaceBefore: paragraph.spaceBefore
+  };
+}
+
+async function loadParagraphSnapshots(
+  context: Word.RequestContext,
+  range: Word.Range
+): Promise<ResolvedParagraphStyle[]> {
+  const paragraphs = range.paragraphs;
+  paragraphs.load('items');
+  await context.sync();
+  for (const paragraph of paragraphs.items) {
+    paragraph.load(['style', 'alignment', 'firstLineIndent', 'leftIndent', 'rightIndent', 'lineSpacing', 'spaceAfter', 'spaceBefore']);
+    paragraph.font.load(['name', 'size', 'bold', 'italic', 'color']);
+  }
+  await context.sync();
+  return paragraphs.items.map((paragraph) => snapshotParagraph(paragraph));
+}
+
+async function applyParagraphSnapshots(
+  context: Word.RequestContext,
+  range: Word.Range,
+  snapshots: ResolvedParagraphStyle[]
+): Promise<void> {
+  const paragraphs = range.paragraphs;
+  paragraphs.load('items');
+  await context.sync();
+  paragraphs.items.forEach((paragraph, index) => {
+    const source = snapshots[Math.min(index, snapshots.length - 1)];
+    if (source) copyResolvedParagraphStyle(source, paragraph as unknown as ResolvedParagraphStyle);
+  });
 }
 
 export interface WordAdapter {
@@ -53,31 +113,17 @@ export class OfficeWordAdapter implements WordAdapter {
   async replaceSelection(text: string, sourceOoxml?: string): Promise<void> {
     await Word.run(async (context) => {
       const range = context.document.getSelection();
+      const paragraphSnapshots = await loadParagraphSnapshots(context, range);
       const formattedOoxml = sourceOoxml
         ? replaceParagraphTextInOoxml(sourceOoxml, text)
         : undefined;
+      let insertedRange: Word.Range;
       if (formattedOoxml) {
-        const insertedRange = range.insertOoxml(formattedOoxml, Word.InsertLocation.replace);
-        insertedRange.select();
-        await context.sync();
-        return;
+        insertedRange = range.insertOoxml(formattedOoxml, Word.InsertLocation.replace);
+      } else {
+        insertedRange = range.insertText(text, Word.InsertLocation.replace);
       }
-
-      const formatSource = range.getRange(Word.RangeLocation.end);
-      const sourceParagraph = range.paragraphs.getLast();
-      formatSource.font.load(["name", "size", "bold", "italic", "color"]);
-      sourceParagraph.load(["style", "alignment", "firstLineIndent", "leftIndent", "rightIndent", "lineSpacing", "spaceAfter", "spaceBefore"]);
-      await context.sync();
-      const insertedRange = range.insertText(text, Word.InsertLocation.replace);
-      copyFontFormatting(formatSource.font as FontFormatting, insertedRange.font as FontFormatting);
-      const insertedParagraphs = insertedRange.paragraphs;
-      insertedParagraphs.load("items");
-      await context.sync();
-      for (const paragraph of insertedParagraphs.items) {
-        if (sourceParagraph.style) paragraph.style = sourceParagraph.style;
-        copyParagraphFormatting(sourceParagraph as ParagraphFormatting, paragraph as ParagraphFormatting);
-        copyFontFormatting(formatSource.font as FontFormatting, paragraph.font as FontFormatting);
-      }
+      await applyParagraphSnapshots(context, insertedRange, paragraphSnapshots);
       insertedRange.select();
       await context.sync();
     });

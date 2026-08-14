@@ -1,7 +1,7 @@
 {
   "name": "bank-ai-word-mvp",
   "private": true,
-  "version": "0.5.2",
+  "version": "0.5.3",
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run build -w @bank-ai/contracts && npm run build -w @bank-ai/addin && npm run build -w @bank-ai/local-runtime && npm run build -w @bank-ai/desktop-host",
