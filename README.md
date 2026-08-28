@@ -101,6 +101,10 @@ BANK_AI_PROVIDER=litellm
 LLM_API_KEY=your_api_key
 LLM_API_BASE=https://prod-litellm.nationalbank.kz
 LLM_MODEL=Qwen/Qwen3.5-35B-A3B-FP8
+PROMPT_VARIANT=
+GRAMMAR_PROMPT_VERSION=hybrid_few_shot_v1
+GRAMMAR_CONFIDENCE_AUTO_APPLY=0.90
+GRAMMAR_CONFIDENCE_REVIEW=0.70
 ```
 
 Файл `.env` исключён из Git. Не добавляйте API-ключ в frontend, manifest или
@@ -183,12 +187,16 @@ npm test           # запуск тестов
 npm start          # запуск собранного локального runtime
 npm run desktop    # запуск tray-приложения для разработки
 npm run dist:win   # сборка Windows NSIS installer
+npm run eval:kazakh # A/B evaluation казахских grammar prompts (внешний LLM)
 ```
+
+Устройство казахской проверки, prompt variants и метрики описаны в
+[`docs/KAZAKH_GRAMMAR.md`](docs/KAZAKH_GRAMMAR.md).
 
 После успешной сборки установщик находится в:
 
 ```text
-packages/desktop-host/release/BankAI-Setup-0.5.4.exe
+packages/desktop-host/release/BankAI-Setup-0.6.0.exe
 ```
 
 ## API MVP

@@ -14,7 +14,7 @@ test("health exposes the current application version", async () => {
     const port = (server.address() as AddressInfo).port;
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     const body = await response.json() as { version: string };
-    assert.equal(body.version, "0.5.5");
+    assert.equal(body.version, "0.6.0");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -81,6 +81,7 @@ test("grammar API returns detected language, individual issues and corrected tex
         language: "ru" as const,
         correctedText: text.replace("были", "была"),
         engines: ["test"],
+        hunspellValidation: [],
         issues: [{
           offset: 7, length: 4, original: "были", message: "Согласование", category: "grammar" as const,
           replacements: ["была"], confidence: .9, source: "test", ruleId: "AGREEMENT"

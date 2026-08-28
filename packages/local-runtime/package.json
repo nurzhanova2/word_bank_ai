@@ -1,6 +1,6 @@
 {
   "name": "@bank-ai/local-runtime",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -23,10 +23,11 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/**/*.test.ts",
-    "eval": "tsx src/evals/run.ts"
+    "eval": "tsx src/evals/run.ts",
+    "eval:kazakh": "tsx src/evals/kazakh/run.ts"
   },
   "dependencies": {
-    "@bank-ai/contracts": "0.5.5",
+    "@bank-ai/contracts": "0.6.0",
     "cors": "^2.8.5",
     "diff": "^9.0.0",
     "dotenv": "^17.2.1",

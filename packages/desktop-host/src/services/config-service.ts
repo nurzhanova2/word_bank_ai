@@ -52,12 +52,25 @@ export class ConfigService {
 
   write(settings: ConnectionSettings): void {
     const quote = (value: string) => JSON.stringify(value);
+    const existing = fs.existsSync(this.filePath)
+      ? parseEnvironment(fs.readFileSync(this.filePath, "utf8"))
+      : {};
     fs.writeFileSync(this.filePath, [
       "BANK_AI_PORT=3847",
       "BANK_AI_PROVIDER=litellm",
       `LLM_API_KEY=${quote(settings.apiKey)}`,
       `LLM_API_BASE=${quote(settings.apiBase)}`,
       `LLM_MODEL=${quote(settings.model)}`,
+      `PROMPT_VARIANT=${quote(existing.PROMPT_VARIANT || "")}`,
+      `GRAMMAR_PROMPT_VERSION=${quote(existing.GRAMMAR_PROMPT_VERSION || "hybrid_few_shot_v1")}`,
+      `GRAMMAR_CONFIDENCE_AUTO_APPLY=${quote(existing.GRAMMAR_CONFIDENCE_AUTO_APPLY || "0.90")}`,
+      `GRAMMAR_CONFIDENCE_REVIEW=${quote(existing.GRAMMAR_CONFIDENCE_REVIEW || "0.70")}`,
+      ...(existing.GRAMMAR_REVIEW_LOG_PATH
+        ? [`GRAMMAR_REVIEW_LOG_PATH=${quote(existing.GRAMMAR_REVIEW_LOG_PATH)}`]
+        : []),
+      ...(existing.GRAMMAR_LOG_INCLUDE_TEXT
+        ? [`GRAMMAR_LOG_INCLUDE_TEXT=${quote(existing.GRAMMAR_LOG_INCLUDE_TEXT)}`]
+        : []),
       ""
     ].join("\n"), { encoding: "utf8", mode: 0o600 });
   }

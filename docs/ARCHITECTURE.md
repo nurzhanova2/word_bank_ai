@@ -230,6 +230,14 @@ Desktop Host запускает LanguageTool через встроенный Ecl
 словарные файлы исключены из Git, но включаются в
 Windows installer как `extraResources`; документы обрабатываются на localhost.
 
+Для казахского Qwen получает полный текст и отдельный массив Hunspell candidates.
+Schema v2 разделяет самостоятельно найденные `errors` и обязательный
+`hunspell_validation` с решениями `ACCEPT / REJECT / UNCERTAIN`. Prompt variants
+и confidence thresholds задаются конфигурацией; код prompt находится отдельно в
+`grammar/prompts/kazakh-grammar/`. Среднеуверенные предложения не применяются, а
+низкоуверенные отбрасываются. A/B evaluator и 200-case начальный dataset находятся
+в `src/evals/kazakh/`; подробности — в `docs/KAZAKH_GRAMMAR.md`.
+
 ## Следующие архитектурные шаги
 
 1. Сохранять смешанное форматирование отдельных runs при значительном изменении текста.

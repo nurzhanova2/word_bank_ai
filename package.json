@@ -1,7 +1,7 @@
 {
   "name": "bank-ai-word-mvp",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.6.0",
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run build -w @bank-ai/contracts && npm run build -w @bank-ai/addin && npm run build -w @bank-ai/local-runtime && npm run build -w @bank-ai/desktop-host",
@@ -11,7 +11,8 @@
     "test": "npm run build -w @bank-ai/contracts && npm run test --workspaces --if-present",
     "desktop": "npm run dev -w @bank-ai/desktop-host",
     "dist:win": "npm run build && npm run dist:win -w @bank-ai/desktop-host",
-    "eval:prompts": "npm run eval -w @bank-ai/local-runtime"
+    "eval:prompts": "npm run eval -w @bank-ai/local-runtime",
+    "eval:kazakh": "npm run eval:kazakh -w @bank-ai/local-runtime"
   },
   "engines": {
     "node": ">=20"

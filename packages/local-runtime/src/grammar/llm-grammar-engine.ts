@@ -1,9 +1,13 @@
 import type { AiProvider } from "../providers/types.js";
-import type { GrammarEngine, GrammarIssue, TextLanguage } from "./types.js";
+import type { GrammarEngine, GrammarIssue, GrammarReviewer, GrammarReviewResult, HunspellCandidate, TextLanguage } from "./types.js";
 import { diffArrays } from "diff";
-import { parseQwenGrammarReview } from "./qwen-json-contract.js";
+import { parseKazakhGrammarReview, parseQwenGrammarReview } from "./qwen-json-contract.js";
+import { grammarConfidenceConfig, type GrammarConfidenceConfig } from "./config.js";
+import { resolveKazakhGrammarPromptVersion } from "./prompts/kazakh-grammar/index.js";
+import { grammarReviewLoggerFromEnvironment, type GrammarReviewLogger } from "./review-logger.js";
 
 interface TextToken { value: string; start: number; end: number }
+const HUNSPELL_CANDIDATE_BATCH_SIZE = 80;
 const protectedTerms = new Set(["реквизит", "реквизиты", "реквизиттер", "iban", "бин", "иин", "бик"]);
 
 function tokens(text: string): TextToken[] {
@@ -49,17 +53,79 @@ function contextualIssues(source: string, result: string): GrammarIssue[] {
   return issues;
 }
 
-export class LlmGrammarEngine implements GrammarEngine {
+export class LlmGrammarEngine implements GrammarEngine, GrammarReviewer {
   readonly name = "llm-review";
-  constructor(private readonly provider: AiProvider) {}
+  constructor(
+    private readonly provider: AiProvider,
+    private readonly confidence: GrammarConfidenceConfig = grammarConfidenceConfig(),
+    private readonly environment: Readonly<Record<string, string | undefined>> = process.env,
+    private readonly logger: GrammarReviewLogger | undefined = grammarReviewLoggerFromEnvironment(environment)
+  ) {}
   supports(_language: TextLanguage): boolean { return true; }
 
-  async check(text: string, _language: TextLanguage): Promise<GrammarIssue[]> {
+  private async log(record: Parameters<GrammarReviewLogger["log"]>[0]): Promise<void> {
+    try { await this.logger?.log(record); }
+    catch { /* Grammar checking must not fail because optional diagnostics are unavailable. */ }
+  }
+
+  async review(text: string, language: TextLanguage, hunspellCandidates: readonly HunspellCandidate[]): Promise<GrammarReviewResult> {
+    const startedAt = performance.now();
+    const promptVersion = language === "kk"
+      ? resolveKazakhGrammarPromptVersion(this.environment)
+      : "generic_v1";
     if (this.provider.completeGrammarReview) {
-      const response = await this.provider.completeGrammarReview(text, _language);
-      return parseQwenGrammarReview(response, text);
+      try {
+        let result: GrammarReviewResult;
+        if (language === "kk") {
+          const batches = hunspellCandidates.length === 0
+            ? [[]]
+            : Array.from(
+                { length: Math.ceil(hunspellCandidates.length / HUNSPELL_CANDIDATE_BATCH_SIZE) },
+                (_value, index) => hunspellCandidates.slice(
+                  index * HUNSPELL_CANDIDATE_BATCH_SIZE,
+                  (index + 1) * HUNSPELL_CANDIDATE_BATCH_SIZE
+                )
+              );
+          const reviews = [];
+          for (const batch of batches) {
+            const response = await this.provider.completeGrammarReview({ text, language, hunspellCandidates: batch, promptVersion });
+            reviews.push(parseKazakhGrammarReview(response, text, batch, this.confidence));
+          }
+          const uniqueIssues = new Map<string, GrammarIssue>();
+          for (const issue of reviews.flatMap((review) => review.issues)) {
+            const key = `${issue.offset}:${issue.length}:${issue.original}:${issue.replacements[0] ?? issue.suggestions?.[0] ?? ""}`;
+            const current = uniqueIssues.get(key);
+            if (!current || issue.confidence > current.confidence) uniqueIssues.set(key, issue);
+          }
+          result = {
+            issues: [...uniqueIssues.values()].sort((left, right) => left.offset - right.offset),
+            hunspellValidation: reviews.flatMap((review) => review.hunspellValidation),
+            promptVersion
+          };
+        } else {
+          const response = await this.provider.completeGrammarReview({ text, language, hunspellCandidates, promptVersion });
+          result = { issues: parseQwenGrammarReview(response, text), hunspellValidation: [], promptVersion };
+        }
+        await this.log({
+          text, language, hunspellCandidates, promptVersion, model: this.provider.name,
+          llmErrors: result.issues, hunspellValidation: result.hunspellValidation,
+          latencyMs: Math.round(performance.now() - startedAt)
+        });
+        return result;
+      } catch (error) {
+        await this.log({
+          text, language, hunspellCandidates, promptVersion, model: this.provider.name,
+          llmErrors: [], hunspellValidation: [], latencyMs: Math.round(performance.now() - startedAt),
+          error: error instanceof Error ? error.message : String(error)
+        });
+        throw error;
+      }
     }
     const corrected = await this.provider.transform("grammar", text);
-    return contextualIssues(text, corrected);
+    return { issues: contextualIssues(text, corrected), hunspellValidation: [], promptVersion: "legacy_diff" };
+  }
+
+  async check(text: string, language: TextLanguage): Promise<GrammarIssue[]> {
+    return (await this.review(text, language, [])).issues;
   }
 }

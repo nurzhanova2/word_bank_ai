@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.5.5";
+export const APP_VERSION = "0.6.0";
 
 export const targetLanguages = ["ru", "kk", "en"] as const;
 export type TargetLanguage = (typeof targetLanguages)[number];
@@ -115,6 +115,32 @@ export interface HealthResponse {
 export type TextLanguage = "ru" | "kk" | "en";
 export type DetectedLanguage = TextLanguage | "mixed" | "unknown";
 export type GrammarCategory = "spelling" | "grammar" | "punctuation" | "style" | "terminology";
+export const kazakhGrammarErrorTypes = [
+  "spelling",
+  "morphology",
+  "case",
+  "possessive",
+  "person",
+  "number",
+  "subject_verb_agreement",
+  "word_order",
+  "lexical",
+  "missing_affix",
+  "extra_affix",
+  "other_grammar"
+] as const;
+export type KazakhGrammarErrorType = (typeof kazakhGrammarErrorTypes)[number];
+export type HunspellDecision = "ACCEPT" | "REJECT" | "UNCERTAIN";
+
+export interface HunspellValidation {
+  word: string;
+  start: number;
+  end: number;
+  suggestions: string[];
+  decision: HunspellDecision;
+  reason: string;
+  confidence: number;
+}
 
 export interface GrammarIssue {
   offset: number;
@@ -128,6 +154,7 @@ export interface GrammarIssue {
   confidence: number;
   source: string;
   ruleId: string;
+  errorType?: KazakhGrammarErrorType;
 }
 
 export interface GrammarCheckRequest { text: string }
@@ -138,5 +165,7 @@ export interface GrammarCheckResponse {
   correctedText: string;
   issues: GrammarIssue[];
   engines: string[];
+  hunspellValidation: HunspellValidation[];
+  promptVersion?: string;
   durationMs: number;
 }

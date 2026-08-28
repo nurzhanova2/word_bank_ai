@@ -131,7 +131,7 @@ function renderGrammarIssues(issues: Awaited<ReturnType<typeof checkGrammar>>["i
     const card = document.createElement("article");
     card.className = "grammar-issue";
     const title = document.createElement("strong");
-    title.textContent = issue.replacements[0] && issue.autoApply !== false
+    title.textContent = issue.replacements[0] !== undefined && issue.autoApply !== false
       ? `${issue.original || "Фрагмент"} → ${issue.replacements[0]}`
       : `${issue.original || "Фрагмент"} — требуется проверка`;
     const explanation = document.createElement("p");

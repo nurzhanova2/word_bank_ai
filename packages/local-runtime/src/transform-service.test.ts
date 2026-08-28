@@ -41,6 +41,33 @@ test("Qwen grammar JSON review masks requisites without shifting UTF-16 offsets"
   assert.equal(sent.source.indexOf("оплота"), source.indexOf("оплота"));
 });
 
+test("Kazakh grammar review sends full structured context and Hunspell candidates with prompt v2", async () => {
+  let capturedRequest: CompletionRequest | undefined;
+  const completionProvider: CompletionProvider = {
+    name: "qwen-kazakh-capture",
+    async complete(request) {
+      capturedRequest = request;
+      return JSON.stringify({ version: 2, errors: [], hunspell_validation: [{
+        word: "достарыммен", decision: "REJECT", reason: "Дұрыс форма.", confidence: 0.99
+      }] });
+    }
+  };
+  const text = "Мен достарыммен киноға бардым.";
+  const service = new TransformService(completionProvider);
+  await service.completeGrammarReview({
+    text,
+    language: "kk",
+    promptVersion: "hybrid_v1",
+    hunspellCandidates: [{ word: "достарыммен", start: 4, end: 15, suggestions: ["достармен"] }]
+  });
+  assert.equal(capturedRequest?.responseFormat?.name, "bank_ai_kazakh_grammar_review_v2");
+  assert.deepEqual(JSON.parse(capturedRequest?.user ?? "{}"), {
+    text,
+    hunspell_candidates: [{ word: "достарыммен", start: 4, end: 15, suggestions: ["достармен"] }]
+  });
+  assert.match(capturedRequest?.system ?? "", /FULL CONTEXT/u);
+});
+
 test("transform service sends masked requisites to the completion provider", async () => {
   let capturedRequest: CompletionRequest | undefined;
   const completionProvider: CompletionProvider = {
