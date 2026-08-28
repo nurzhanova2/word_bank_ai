@@ -2,7 +2,7 @@
 
 ## 1. Статус снимка
 
-Этот файл первоначально описывал состояние commit `88eb5c1`; актуализирован 28 августа 2026 года после внедрения Kazakh Grammar Review v2. Текущая версия приложения — `0.6.0`. Источником истины являются исходный код, package-конфигурации, тесты, build-скрипты и workflow.
+Этот файл первоначально описывал состояние commit `88eb5c1`; актуализирован 28 августа 2026 года после внедрения Kazakh Grammar Review v2. Текущая версия приложения — `0.6.1`. Источником истины являются исходный код, package-конфигурации, тесты, build-скрипты и workflow.
 
 Проверки, выполненные при подготовке контекста:
 
@@ -107,7 +107,7 @@ word_bank_ai/
 
 ### `packages/contracts`
 
-- `src/index.ts` — `APP_VERSION = "0.6.0"`, action registry, apply mode, опции, API errors, health и grammar contracts.
+- `src/index.ts` — `APP_VERSION = "0.6.1"`, action registry, apply mode, опции, API errors, health и grammar contracts.
 - Компилируется в `dist` с `.d.ts` и экспортируется остальным workspace-пакетам.
 
 ### `packages/addin`
@@ -387,7 +387,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 ## 14. Расхождения документации и кода
 
 - Корневой `README.md` говорит о preview «Было / Стало», но текущий UI намеренно имеет одну inline-вкладку/область «Изменения» без отдельных полных блоков.
-- Версия package-конфигураций, runtime `/health`, документации и установщика синхронизирована на `0.6.0`.
+- Версия package-конфигураций, runtime `/health`, документации и установщика синхронизирована на `0.6.1`.
 - Дерево в корневом `README.md` не показывает `packages/desktop-host`, хотя пакет является обязательной частью EXE.
 - `docs/README.md` описывает предполагаемые API Gateway, Auth, Document Processing, Audit, Monitoring и другие сервисы. В текущем коде их нет; фактическая архитектура — localhost Express внутри Electron.
 - `docs/ARCHITECTURE.md` в общем корректен, но формулировка о том, что installer должен зарегистрировать manifest, не соответствует текущей автоматике: пользователь запускает регистрацию из tray после install.

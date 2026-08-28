@@ -18,8 +18,9 @@ const protectedPattern = /https?:\/\/\S+|\b[\w.+-]+@[\w.-]+\.\w+\b|\b(?=[\p{L}\d
 
 const defaultWhitelist = [
   "Bank AI", "BankAI", "QazBank", "банкомат", "банкинг", "финтех", "онлайн", "офлайн",
-  "реквизит", "реквизиттер"
+  "реквизит", "реквизиттер", "компания"
 ];
+const productiveCaseSuffixes = ["да", "де", "та", "те", "ға", "ге", "қа", "ке", "дан", "ден", "тан", "тен", "нан", "нен"];
 
 function protectedRanges(text: string): Array<{ start: number; end: number }> {
   return [...text.matchAll(protectedPattern)].map((match) => ({
@@ -50,6 +51,11 @@ export class KazakhHunspellEngine implements GrammarEngine {
 
   supports(language: TextLanguage): boolean { return language === "kk"; }
 
+  private isApprovedForm(word: string): boolean {
+    if (this.whitelist.has(word)) return true;
+    return productiveCaseSuffixes.some((suffix) => word.endsWith(suffix) && this.whitelist.has(word.slice(0, -suffix.length)));
+  }
+
   async check(text: string, language: TextLanguage): Promise<GrammarIssue[]> {
     if (!this.supports(language)) throw new Error(`Hunspell қазақ тілі '${language}' тілін қолдамайды.`);
     const protectedTextRanges = protectedRanges(text);
@@ -62,7 +68,7 @@ export class KazakhHunspellEngine implements GrammarEngine {
         isProtected(offset, protectedTextRanges)
         || latinOnly.test(original)
         || upperCase.test(original)
-        || this.whitelist.has(normalized)
+        || this.isApprovedForm(normalized)
         || this.dictionary.correct(original)
         || this.dictionary.correct(normalized)
       ) continue;

@@ -155,6 +155,43 @@ test("large Hunspell candidate lists are validated in bounded batches with full 
     }
   }, grammarConfidenceConfig({}), { GRAMMAR_PROMPT_VERSION: "hybrid_v1" });
   const result = await engine.review(text, "kk", candidates);
-  assert.deepEqual(batchSizes, [80, 1]);
+  assert.deepEqual(batchSizes, [0, 80, 1]);
   assert.equal(result.hunspellValidation.length, 81);
+});
+
+test("runs full-context discovery independently before validating Hunspell candidates", async () => {
+  const calls: number[] = [];
+  const engine = new LlmGrammarEngine({
+    name: "qwen-test",
+    transform: async () => source,
+    completeGrammarReview: async (request) => {
+      calls.push(request.hunspellCandidates.length);
+      if (request.hunspellCandidates.length === 0) {
+        return JSON.stringify({
+          version: 2,
+          errors: [{
+            original: "бардық", correction: "бардым", start: 33, end: 39,
+            type: "subject_verb_agreement", reason: "«Мен» бастауышымен жақ бойынша сәйкеспейді.",
+            confidence: 0.98, source: "context"
+          }],
+          hunspell_validation: []
+        });
+      }
+      return JSON.stringify({
+        version: 2,
+        errors: [],
+        hunspell_validation: [{
+          word: "достарыммен", decision: "REJECT", reason: "Контексте дұрыс сөз формасы.", confidence: 0.99
+        }]
+      });
+    }
+  }, grammarConfidenceConfig({}), { GRAMMAR_PROMPT_VERSION: "hybrid_v1" });
+
+  const result = await engine.review(source, "kk", [candidate]);
+
+  assert.deepEqual(calls, [0, 1]);
+  assert.deepEqual(result.issues.map(({ original, replacements }) => ({ original, replacements })), [
+    { original: "бардық", replacements: ["бардым"] }
+  ]);
+  assert.equal(result.hunspellValidation[0]?.decision, "REJECT");
 });

@@ -68,3 +68,8 @@ test("never auto-replaces valid agglutinative forms with edit-distance neighbors
   assert.ok(issues.every((issue) => issue.replacements.length === 0 && issue.autoApply === false));
   assert.deepEqual(issues.map((issue) => issue.suggestions?.[0]), ["балаларында", "векторға", "есіне", "жылдамдада"]);
 });
+
+test("accepts productive case forms of approved loanwords", async () => {
+  const engine = new KazakhHunspellEngine(dictionary([]));
+  assert.deepEqual(await engine.check("компанияда", "kk"), []);
+});

@@ -8,15 +8,17 @@
 полный текст
   → Hunspell и локальные казахские правила
   → список Hunspell candidates без автоматических замен
-  → Qwen: независимый full-context analysis + validation каждого candidate
+  → Qwen: отдельный full-context analysis без словарных кандидатов
+  → Qwen: отдельная пакетная validation каждого Hunspell candidate
   → confidence policy и строгая проверка JSON/UTF-16 ranges
   → объединение подтверждённых исправлений
 ```
 
 Hunspell является только источником кандидатов. Его `suggestions` не попадают в
-`replacements` и не применяются автоматически. Qwen получает полный текст вместе
-с массивом `{ word, start, end, suggestions }`, ищет также context-only ошибки и
-возвращает schema v2:
+`replacements` и не применяются автоматически. Сначала Qwen получает полный текст
+с пустым массивом кандидатов и независимо ищет context-only ошибки. Затем отдельные
+запросы получают полный текст и пакеты `{ word, start, end, suggestions }`. Это не
+позволяет длинному списку OOV-слов вытеснить синтаксический анализ. Ответы используют schema v2:
 
 ```json
 {

@@ -9,8 +9,48 @@ const keyboardTypos = new Map([
   ["кужат", "құжат"],
   ["отиниш", "өтініш"],
   ["каржы", "қаржы"],
-  ["келисим", "келісім"]
+  ["келисим", "келісім"],
+  ["таңертен", "таңертең"],
+  ["оқыймыз", "оқимыз"],
+  ["тындағанды", "тыңдағанды"]
 ]);
+
+interface ContextRule {
+  pattern: RegExp;
+  original(match: RegExpMatchArray): string;
+  replacement(match: RegExpMatchArray): string;
+  category: GrammarIssue["category"];
+  message: string;
+  ruleId: string;
+}
+
+const contextRules: readonly ContextRule[] = [
+  {
+    pattern: /(?<!\p{L})(пәндер)(?=\s+оқ(?:ы?й|и)мыз(?!\p{L}))/giu,
+    original: (match) => match[1]!, replacement: () => "пәндерді", category: "grammar",
+    message: "Тура толықтауыш табыс септігінде қолданылуы керек.", ruleId: "KK_OBJECT_ACCUSATIVE"
+  },
+  {
+    pattern: /(?<!\p{L})маған\s+ең\s+қатты\s+([\p{L}-]+)\s+ұнайды(?!\p{L})/giu,
+    original: (match) => match[0], replacement: (match) => `маған ${match[1]} ең қатты ұнайды`, category: "grammar",
+    message: "Мағыналық екпін үшін бастауыштық атау күшейткіш тіркестің алдында тұрады.", ruleId: "KK_WORD_ORDER_PREFERENCE"
+  },
+  {
+    pattern: /(?<!\p{L})(бірнеше\s+)(тапсырмаларды)(?!\p{L})/giu,
+    original: (match) => match[2]!, replacement: () => "тапсырманы", category: "grammar",
+    message: "«Бірнеше» сан-мөлшер сөзінен кейін зат есім көптік жалғауынсыз қолданылады.", ruleId: "KK_QUANTIFIER_NUMBER"
+  },
+  {
+    pattern: /(?<!\p{L})жақсы\s+(көрем)(?!\p{L})/giu,
+    original: (match) => match[1]!, replacement: () => "көремін", category: "grammar",
+    message: "Бірінші жақ жекеше баяндауыш жіктік жалғауымен беріледі.", ruleId: "KK_FIRST_PERSON_ENDING"
+  },
+  {
+    pattern: /(?<!\p{L})жұмыс\s+жасағым\s+келеді(?!\p{L})/giu,
+    original: (match) => match[0], replacement: () => "жұмыс істегім келеді", category: "terminology",
+    message: "Бұл контексте нормативті тіркес — «жұмыс істегім келеді».", ruleId: "KK_LEXICAL_COLLOCATION"
+  }
+];
 
 function preserveCase(source: string, replacement: string): string {
   if (source === source.toLocaleUpperCase("kk-KZ")) return replacement.toLocaleUpperCase("kk-KZ");
@@ -90,6 +130,47 @@ export class KazakhRulesEngine implements GrammarEngine {
       });
     }
 
-    return issues.sort((left, right) => left.offset - right.offset);
+    for (const rule of contextRules) {
+      for (const match of text.matchAll(rule.pattern)) {
+        const original = rule.original(match);
+        const relativeOffset = match[0].indexOf(original);
+        issues.push({
+          offset: match.index + Math.max(0, relativeOffset),
+          length: original.length,
+          original,
+          message: rule.message,
+          category: rule.category,
+          replacements: [rule.replacement(match)],
+          confidence: 0.96,
+          source: this.name,
+          ruleId: rule.ruleId
+        });
+      }
+    }
+
+    for (const sentence of text.matchAll(/[^.!?\r\n]+[.!?]?/gu)) {
+      if (!/(?<!\p{L})мен(?!\p{L})/iu.test(sentence[0]) || !/(?<!\p{L})достарыммен(?!\p{L})/iu.test(sentence[0])) continue;
+      for (const verb of sentence[0].matchAll(/(?<!\p{L})бардық(?!\p{L})/giu)) {
+        issues.push({
+          offset: sentence.index + verb.index,
+          length: verb[0].length,
+          original: verb[0],
+          message: "«Мен» бастауышы бірінші жақ жекеше баяндауышты талап етеді.",
+          category: "grammar",
+          replacements: [preserveCase(verb[0], "бардым")],
+          confidence: 0.98,
+          source: this.name,
+          ruleId: "KK_SUBJECT_VERB_PERSON"
+        });
+      }
+    }
+
+    const unique = new Map<string, GrammarIssue>();
+    for (const issue of issues) {
+      const key = `${issue.offset}:${issue.length}`;
+      const current = unique.get(key);
+      if (!current || issue.confidence > current.confidence) unique.set(key, issue);
+    }
+    return [...unique.values()].sort((left, right) => left.offset - right.offset);
   }
 }

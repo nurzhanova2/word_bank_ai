@@ -77,16 +77,19 @@ export class LlmGrammarEngine implements GrammarEngine, GrammarReviewer {
       try {
         let result: GrammarReviewResult;
         if (language === "kk") {
-          const batches = hunspellCandidates.length === 0
-            ? [[]]
-            : Array.from(
-                { length: Math.ceil(hunspellCandidates.length / HUNSPELL_CANDIDATE_BATCH_SIZE) },
-                (_value, index) => hunspellCandidates.slice(
-                  index * HUNSPELL_CANDIDATE_BATCH_SIZE,
-                  (index + 1) * HUNSPELL_CANDIDATE_BATCH_SIZE
-                )
-              );
-          const reviews = [];
+          // Context discovery and dictionary validation are deliberately separate. A long
+          // candidate list otherwise makes the model focus on Hunspell and miss syntax.
+          const contextResponse = await this.provider.completeGrammarReview({
+            text, language, hunspellCandidates: [], promptVersion
+          });
+          const reviews = [parseKazakhGrammarReview(contextResponse, text, [], this.confidence)];
+          const batches = Array.from(
+            { length: Math.ceil(hunspellCandidates.length / HUNSPELL_CANDIDATE_BATCH_SIZE) },
+            (_value, index) => hunspellCandidates.slice(
+              index * HUNSPELL_CANDIDATE_BATCH_SIZE,
+              (index + 1) * HUNSPELL_CANDIDATE_BATCH_SIZE
+            )
+          );
           for (const batch of batches) {
             const response = await this.provider.completeGrammarReview({ text, language, hunspellCandidates: batch, promptVersion });
             reviews.push(parseKazakhGrammarReview(response, text, batch, this.confidence));

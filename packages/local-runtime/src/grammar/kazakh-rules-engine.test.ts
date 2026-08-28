@@ -33,6 +33,26 @@ test("offers a deterministic correction for frequent Russian-keyboard Kazakh typ
   ]);
 });
 
+test("finds frequent objective errors in a multi-paragraph Kazakh sample", async () => {
+  const text = [
+    "Күнде таңертен тұрамын. Университетте біз пәндер оқыймыз, бірақ маған ең қатты бағдарламалау ұнайды.",
+    "Кеше мен достарыммен кітапханаға бардық және бірнеше тапсырмаларды орындадық.",
+    "Мен музыка тындағанды жақсы көрем. Болашақта компанияда жұмыс жасағым келеді."
+  ].join("\n\n");
+  const issues = await new KazakhRulesEngine().check(text, "kk");
+  assert.deepEqual(issues.map(({ original, replacements }) => ({ original, replacement: replacements[0] })), [
+    { original: "таңертен", replacement: "таңертең" },
+    { original: "пәндер", replacement: "пәндерді" },
+    { original: "оқыймыз", replacement: "оқимыз" },
+    { original: "маған ең қатты бағдарламалау ұнайды", replacement: "маған бағдарламалау ең қатты ұнайды" },
+    { original: "бардық", replacement: "бардым" },
+    { original: "тапсырмаларды", replacement: "тапсырманы" },
+    { original: "тындағанды", replacement: "тыңдағанды" },
+    { original: "көрем", replacement: "көремін" },
+    { original: "жұмыс жасағым келеді", replacement: "жұмыс істегім келеді" }
+  ]);
+});
+
 test("does not report rules for a valid sentence or another language", async () => {
   const engine = new KazakhRulesEngine();
   assert.deepEqual(await engine.check("Өтініш қабылданды.", "kk"), []);

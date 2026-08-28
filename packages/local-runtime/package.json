@@ -1,6 +1,6 @@
 {
   "name": "@bank-ai/local-runtime",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "exports": {
@@ -27,7 +27,7 @@
     "eval:kazakh": "tsx src/evals/kazakh/run.ts"
   },
   "dependencies": {
-    "@bank-ai/contracts": "0.6.0",
+    "@bank-ai/contracts": "0.6.1",
     "cors": "^2.8.5",
     "diff": "^9.0.0",
     "dotenv": "^17.2.1",
