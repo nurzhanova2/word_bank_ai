@@ -195,3 +195,31 @@ test("runs full-context discovery independently before validating Hunspell candi
   ]);
   assert.equal(result.hunspellValidation[0]?.decision, "REJECT");
 });
+
+test("audits long under-detected Kazakh text by paragraph and restores global offsets", async () => {
+  const first = "Біз қажеттіліктерін зерттеді. ".repeat(12).trim();
+  const second = "Мен ұсыныстарын тындадым. ".repeat(12).trim();
+  const text = `${first}\n\n${second}`;
+  const calls: string[] = [];
+  const engine = new LlmGrammarEngine({
+    name: "qwen-test",
+    transform: async () => text,
+    completeGrammarReview: async (request) => {
+      calls.push(request.text);
+      const errors = request.text === text
+        ? []
+        : request.text === first
+          ? [{ original: "зерттеді", correction: "зерттедік", start: first.indexOf("зерттеді"), end: first.indexOf("зерттеді") + 8, type: "subject_verb_agreement", reason: "Жақ сәйкестігі.", confidence: 0.98, source: "context" }]
+          : [{ original: "тындадым", correction: "тыңдадым", start: second.indexOf("тындадым"), end: second.indexOf("тындадым") + 8, type: "spelling", reason: "Емле қатесі.", confidence: 0.99, source: "context" }];
+      return JSON.stringify({ version: 2, errors, hunspell_validation: [] });
+    }
+  }, grammarConfidenceConfig({}), { GRAMMAR_PROMPT_VERSION: "hybrid_v1" });
+
+  const result = await engine.review(text, "kk", []);
+
+  assert.deepEqual(calls, [text, first, second]);
+  assert.deepEqual(result.issues.map(({ original, offset }) => ({ original, offset })), [
+    { original: "зерттеді", offset: first.indexOf("зерттеді") },
+    { original: "тындадым", offset: first.length + 2 + second.indexOf("тындадым") }
+  ]);
+});

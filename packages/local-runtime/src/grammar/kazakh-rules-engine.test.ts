@@ -36,7 +36,7 @@ test("offers a deterministic correction for frequent Russian-keyboard Kazakh typ
 test("finds frequent objective errors in a multi-paragraph Kazakh sample", async () => {
   const text = [
     "Күнде таңертен тұрамын. Университетте біз пәндер оқыймыз, бірақ маған ең қатты бағдарламалау ұнайды.",
-    "Кеше мен достарыммен кітапханаға бардық және бірнеше тапсырмаларды орындадық.",
+    "Кеше мен достарыммен кітапханаға бардық. Біз бірнеше тапсырмаларды орындадық.",
     "Мен музыка тындағанды жақсы көрем. Болашақта компанияда жұмыс жасағым келеді."
   ].join("\n\n");
   const issues = await new KazakhRulesEngine().check(text, "kk");
@@ -51,6 +51,26 @@ test("finds frequent objective errors in a multi-paragraph Kazakh sample", async
     { original: "көрем", replacement: "көремін" },
     { original: "жұмыс жасағым келеді", replacement: "жұмыс істегім келеді" }
   ]);
+});
+
+test("finds agreement and possessive errors without changing a valid design phrase", async () => {
+  const text = [
+    "Өткен аптада мен әріптестеріммен жаңа жоба туралы талқыладық. Біздің мақсатымыз клиенттер үшін ыңғайлы мобильді қосымша жасау болды. Жобаны бастамас бұрын біз пайдаланушылардың қажеттіліктерін зерттеді және бірнеше сұхбат өткіздік.",
+    "Зерттеу нәтижесінде көптеген адамдар қосымшаның жылдам және қолдануға оңай болғанын қалайтынын анықтадық. Бірақ кейбір пайдаланушылар өздерінің жеке деректерін қауіпсіздігіне алаңдайды. Сондықтан біз ақпаратты қорғауға ерекше назар аудару керек деп шештік.",
+    "Келесі күні команда мүшелері әр түрлі шешімдерді ұсынды. Мен олардың ұсыныстарын мұқият тындадым және ең тиімді нұсқаларды таңдадым. Әр ұсыныстың артықшылықтары мен кемшіліктерін салыстырып, біз жаңа дизайн жасауға шешім қабылдадық.",
+    "Қазір жобаның алғашқы нұсқасы дайын, бірақ әлі бірнеше мәселелер бар. Бағдарламашылар қателерді түзетіп жатыр, ал дизайнерлер интерфейсті жақсарту үшін жұмыс жасап жатыр."
+  ].join("\n\n");
+  const issues = await new KazakhRulesEngine().check(text, "kk");
+  assert.deepEqual(issues.map(({ original, replacements }) => ({ original, replacement: replacements[0] })), [
+    { original: "талқыладық", replacement: "талқыладым" },
+    { original: "зерттеді", replacement: "зерттедік" },
+    { original: "деректерін", replacement: "деректерінің" },
+    { original: "назар аудару", replacement: "назар аударуымыз" },
+    { original: "тындадым", replacement: "тыңдадым" },
+    { original: "мәселелер", replacement: "мәселе" },
+    { original: "жұмыс жасап жатыр", replacement: "жұмыс істеп жатыр" }
+  ]);
+  assert.ok(!issues.some(({ original }) => original.includes("дизайн")));
 });
 
 test("does not report rules for a valid sentence or another language", async () => {

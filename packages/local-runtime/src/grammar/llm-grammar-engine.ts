@@ -8,6 +8,7 @@ import { grammarReviewLoggerFromEnvironment, type GrammarReviewLogger } from "./
 
 interface TextToken { value: string; start: number; end: number }
 const HUNSPELL_CANDIDATE_BATCH_SIZE = 80;
+const LONG_KAZAKH_REVIEW_THRESHOLD = 600;
 const protectedTerms = new Set(["реквизит", "реквизиты", "реквизиттер", "iban", "бин", "иин", "бик"]);
 
 function tokens(text: string): TextToken[] {
@@ -53,6 +54,12 @@ function contextualIssues(source: string, result: string): GrammarIssue[] {
   return issues;
 }
 
+function paragraphReviewChunks(text: string): Array<{ text: string; offset: number }> {
+  return [...text.matchAll(/[^\r\n]+/gu)]
+    .filter((match) => !/^\s*$/u.test(match[0]))
+    .map((match) => ({ text: match[0], offset: match.index }));
+}
+
 export class LlmGrammarEngine implements GrammarEngine, GrammarReviewer {
   readonly name = "llm-review";
   constructor(
@@ -82,7 +89,23 @@ export class LlmGrammarEngine implements GrammarEngine, GrammarReviewer {
           const contextResponse = await this.provider.completeGrammarReview({
             text, language, hunspellCandidates: [], promptVersion
           });
-          const reviews = [parseKazakhGrammarReview(contextResponse, text, [], this.confidence)];
+          const contextReview = parseKazakhGrammarReview(contextResponse, text, [], this.confidence);
+          const reviews = [contextReview];
+          const sentenceCount = (text.match(/[.!?](?=\s|$)/gu) ?? []).length;
+          const minimumExpectedCoverage = Math.max(2, Math.floor(sentenceCount / 3));
+          if (text.length >= LONG_KAZAKH_REVIEW_THRESHOLD && contextReview.issues.length < minimumExpectedCoverage) {
+            for (const chunk of paragraphReviewChunks(text)) {
+              if (chunk.text === text) continue;
+              const response = await this.provider.completeGrammarReview({
+                text: chunk.text, language, hunspellCandidates: [], promptVersion
+              });
+              const review = parseKazakhGrammarReview(response, chunk.text, [], this.confidence);
+              reviews.push({
+                ...review,
+                issues: review.issues.map((issue) => ({ ...issue, offset: issue.offset + chunk.offset }))
+              });
+            }
+          }
           const batches = Array.from(
             { length: Math.ceil(hunspellCandidates.length / HUNSPELL_CANDIDATE_BATCH_SIZE) },
             (_value, index) => hunspellCandidates.slice(

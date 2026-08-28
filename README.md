@@ -196,7 +196,7 @@ npm run eval:kazakh # A/B evaluation казахских grammar prompts (вне�
 После успешной сборки установщик находится в:
 
 ```text
-packages/desktop-host/release/BankAI-Setup-0.6.1.exe
+packages/desktop-host/release/BankAI-Setup-0.6.2.exe
 ```
 
 ## API MVP
