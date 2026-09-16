@@ -13,6 +13,8 @@ test("Windows dependency preparation pins versioned LanguageTool and JRE archive
   assert.match(script, /JRE_VERSION = "17\.0\.16\+8"/u);
   assert.match(script, /D35B05F4832215D8877D0DBF15C6370C854D7D5B812F890A9C0DB8AD412A6BF2/u);
   assert.doesNotMatch(script, /LanguageTool-stable|assets\/latest\/17/u);
+  assert.doesNotMatch(script, /Get-FileHash/u);
+  assert.match(script, /Security\.Cryptography\.SHA256\]::Create/u);
 });
 
 test("release package scripts include deterministic SBOM and installer verification", () => {

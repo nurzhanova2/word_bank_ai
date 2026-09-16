@@ -30,7 +30,14 @@ function Download-VerifiedArchive([string]$url, [string]$destination, [string]$e
 }
 
 function Assert-Sha256([string]$path, [string]$expected) {
-  $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($path)
+  try {
+    $actual = ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "")
+  } finally {
+    $stream.Dispose()
+    $sha256.Dispose()
+  }
   if ($actual -ne $expected) { throw "Контрольная сумма не совпала для $path" }
 }
 
