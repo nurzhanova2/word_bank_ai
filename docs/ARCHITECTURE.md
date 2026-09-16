@@ -14,10 +14,10 @@ packages/local-runtime  HTTPS API, orchestration, providers и validators
 packages/desktop-host   Electron lifecycle, настройки, tray и установка Add-in
 ```
 
-Runtime слушает только `127.0.0.1:3847`. В режиме разработки используется
-доверенный локальный сертификат из `office-addin-dev-certs`. В поставке для
-Windows установщик должен создать сертификат, зарегистрировать manifest,
-настроить автозапуск и упаковать runtime.
+Runtime слушает только `127.0.0.1:3847`. При каждом запуске `office-addin-dev-certs`
+проверяет и при необходимости восстанавливает доверие текущего пользователя к
+локальному CA. Windows Host регистрирует manifest по действию пользователя из tray,
+настраивает автозапуск и упаковывает runtime.
 
 ## API
 

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { config as loadEnvironment, parse as parseEnvironment } from "dotenv";
+import type { SecretStore } from "./secret-store.js";
 
 export interface ConnectionSettings {
   apiKey: string;
@@ -27,7 +28,7 @@ export function validateConnectionSettings(input: ConnectionSettings, current: C
 }
 
 export class ConfigService {
-  constructor(readonly filePath: string) {}
+  constructor(readonly filePath: string, private readonly secrets: SecretStore) {}
 
   ensure(): void {
     if (fs.existsSync(this.filePath)) return;
@@ -35,22 +36,25 @@ export class ConfigService {
     this.write(defaultSettings);
   }
 
-  loadEnvironment(): void {
+  async loadEnvironment(): Promise<void> {
     this.ensure();
     loadEnvironment({ path: this.filePath, override: true, quiet: true });
+    const apiKey = await this.secrets.getApiKey();
+    if (apiKey) process.env.LLM_API_KEY = apiKey;
+    else delete process.env.LLM_API_KEY;
   }
 
-  read(): ConnectionSettings {
+  async read(): Promise<ConnectionSettings> {
     this.ensure();
     const values = parseEnvironment(fs.readFileSync(this.filePath, "utf8"));
     return {
-      apiKey: values.LLM_API_KEY?.trim() ?? "",
+      apiKey: (await this.secrets.getApiKey()) ?? "",
       apiBase: values.LLM_API_BASE?.trim() || defaultSettings.apiBase,
       model: values.LLM_MODEL?.trim() || defaultSettings.model
     };
   }
 
-  write(settings: ConnectionSettings): void {
+  async write(settings: ConnectionSettings): Promise<void> {
     const quote = (value: string) => JSON.stringify(value);
     const existing = fs.existsSync(this.filePath)
       ? parseEnvironment(fs.readFileSync(this.filePath, "utf8"))
@@ -58,7 +62,6 @@ export class ConfigService {
     fs.writeFileSync(this.filePath, [
       "BANK_AI_PORT=3847",
       "BANK_AI_PROVIDER=litellm",
-      `LLM_API_KEY=${quote(settings.apiKey)}`,
       `LLM_API_BASE=${quote(settings.apiBase)}`,
       `LLM_MODEL=${quote(settings.model)}`,
       `PROMPT_VARIANT=${quote(existing.PROMPT_VARIANT || "")}`,
@@ -73,5 +76,19 @@ export class ConfigService {
         : []),
       ""
     ].join("\n"), { encoding: "utf8", mode: 0o600 });
+    if (settings.apiKey) await this.secrets.setApiKey(settings.apiKey);
+  }
+
+  /** Imports a legacy plaintext key once, then rewrites the config without it. */
+  async migrateLegacyApiKey(): Promise<boolean> {
+    if (!fs.existsSync(this.filePath) || await this.secrets.getApiKey()) return false;
+    let values: Record<string, string | undefined>;
+    try { values = parseEnvironment(fs.readFileSync(this.filePath, "utf8")); }
+    catch { return false; }
+    const key = values.LLM_API_KEY?.trim();
+    if (!key) return false;
+    await this.secrets.setApiKey(key);
+    await this.write({ apiKey: "", apiBase: values.LLM_API_BASE?.trim() || defaultSettings.apiBase, model: values.LLM_MODEL?.trim() || defaultSettings.model });
+    return true;
   }
 }

@@ -1,4 +1,5 @@
 import https from "node:https";
+import { randomBytes } from "node:crypto";
 import { createApp } from "@bank-ai/local-runtime/app";
 import { getLocalHttpsOptions } from "@bank-ai/local-runtime/https-options";
 import { createProvider, MockAiProvider } from "@bank-ai/local-runtime/provider";
@@ -32,7 +33,8 @@ export class RuntimeManager {
 
   async start(): Promise<RuntimeState> {
     this.update({ status: "запускается…", provider: this.currentState.provider });
-    this.config.loadEnvironment();
+    await this.config.migrateLegacyApiKey();
+    await this.config.loadEnvironment();
     let provider;
     let configurationError: Error | undefined;
     try { provider = createProvider(); }
@@ -42,7 +44,8 @@ export class RuntimeManager {
     }
     const providerName = configurationError ? "mock — заполните LLM_API_KEY" : provider.name;
     try {
-      this.server = https.createServer(await getLocalHttpsOptions(), createApp(provider, this.addinPath));
+      const sessionToken = randomBytes(32).toString("base64url");
+      this.server = https.createServer(await getLocalHttpsOptions(), createApp(provider, this.addinPath, undefined, { sessionToken }));
       await new Promise<void>((resolve, reject) => {
         this.server!.once("error", reject);
         this.server!.listen(this.port, this.host, resolve);

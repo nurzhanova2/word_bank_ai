@@ -8,6 +8,7 @@ import type { AiProvider, CompletionProvider, GrammarReviewRequest } from "../pr
 import { protectRequisites, restoreProtectedResult } from "../validators/requisites.js";
 import { protectParagraphBreaks, restoreParagraphBreaks } from "../validators/layout.js";
 import { isAcceptableResult } from "../validators/result.js";
+import { sliceMarkers } from "../document/slice-markers.js";
 import { grammarReviewJsonSchema, kazakhGrammarReviewJsonSchema } from "../grammar/qwen-json-contract.js";
 import { getKazakhGrammarPrompt, type KazakhGrammarPromptVersion } from "../grammar/prompts/kazakh-grammar/index.js";
 
@@ -36,6 +37,10 @@ export class TransformService implements AiProvider {
 
   constructor(private readonly completionProvider: CompletionProvider) {
     this.name = completionProvider.name;
+  }
+
+  async probeReadiness(): Promise<"ok" | "unavailable" | "timeout" | "unknown"> {
+    return this.completionProvider.probeReadiness?.() ?? "unknown";
   }
 
   async completeGrammarReview(request: GrammarReviewRequest): Promise<string>;
@@ -106,6 +111,7 @@ export class TransformService implements AiProvider {
   }
 
   private async transformSingle(action: TransformAction, text: string, options: TransformOptions): Promise<string> {
+    const targetMarkers = sliceMarkers(text);
     const layoutProtection = action === "summary"
       ? { protectedText: text, entries: [] }
       : protectParagraphBreaks(text);
@@ -129,6 +135,9 @@ export class TransformService implements AiProvider {
         modeInstruction,
         action === "translate" ? glossaryInstruction(options.targetLanguage) : "",
         markerInstruction,
+        targetMarkers.length > 0
+          ? "Маркеры [[BANKAI:SLICESTART...]] и [[BANKAI:SLICEEND...]] ограничивают единственный изменяемый фрагмент. Сохрани оба ровно по одному разу и не меняй их. Контекст до и после них доступен только для понимания и не должен быть изменён."
+          : "",
         layoutProtection.entries.length > 0
           ? "Маркеры вида [[BANKAI:PAR:X]] обозначают границы абзацев. Сохрани каждый такой маркер ровно один раз и не меняй его."
           : "",
@@ -144,8 +153,11 @@ export class TransformService implements AiProvider {
 
       try {
         const requisitesRestored = restoreProtectedResult(protection, decodeSourceData(protectedResult), {
-          requireAll: action !== "summary"
+          requireAll: action !== "summary", allowedMarkers: targetMarkers
         });
+        for (const marker of targetMarkers) {
+          if (requisitesRestored.split(marker).length - 1 !== 1) throw new Error("LLM changed a slice marker.");
+        }
         const result = restoreParagraphBreaks(layoutProtection, requisitesRestored);
         if (isAcceptableResult(action, text, result)) return result;
       } catch {

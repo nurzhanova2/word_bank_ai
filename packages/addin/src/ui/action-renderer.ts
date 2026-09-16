@@ -21,7 +21,7 @@ export function renderActions(container: HTMLElement): RenderedActions {
   for (const definition of actionDefinitions) {
     if (definition.id === "tone") continue;
     const card = document.createElement(definition.option ? "div" : "button");
-    card.className = `action-card${definition.option ? " action-card-option" : ""}`;
+    card.className = `action-card action-${definition.id}${definition.option ? " action-card-option" : ""}`;
     if (card instanceof HTMLButtonElement) {
       card.type = "button";
       card.dataset.action = definition.id;
@@ -54,15 +54,17 @@ export function renderActions(container: HTMLElement): RenderedActions {
       copy.append(description);
     }
 
-    const trigger = document.createElement(definition.option ? "button" : "span");
-    trigger.className = definition.option ? "action-go" : "chevron";
-    trigger.textContent = "›";
-    if (trigger instanceof HTMLButtonElement) {
+    if (definition.option) {
+      const trigger = document.createElement("button");
+      trigger.className = "action-go";
+      trigger.textContent = "›";
       trigger.type = "button";
       trigger.dataset.action = definition.id;
       trigger.ariaLabel = definition.title;
-    } else trigger.ariaHidden = "true";
-    card.append(icon, copy, trigger);
+      card.append(icon, copy, trigger);
+    } else {
+      card.append(icon, copy);
+    }
     container.append(card);
   }
 

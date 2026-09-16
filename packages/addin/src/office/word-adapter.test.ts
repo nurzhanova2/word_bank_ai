@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyFontFormatting, copyParagraphFormatting } from "./word-adapter.js";
+import { copyFontFormatting, copyParagraphFormatting, documentFingerprint } from "./word-adapter.js";
 
 test("copies computed font properties and ignores mixed unavailable values", () => {
   const target = { name: "Calibri", size: 11, bold: false, italic: false, color: "#000000" };
   copyFontFormatting({ name: "Arial", size: 14, bold: null, italic: true, color: "#245522" }, target);
   assert.deepEqual(target, { name: "Arial", size: 14, bold: false, italic: true, color: "#245522" });
+});
+
+test("document fingerprint keeps duplicate and Unicode paragraph order structural", () => {
+  const source = [{ text: "Қайталану 😀" }, { text: "аралық" }, { text: "Қайталану 😀" }, { text: "соңы" }];
+  assert.equal(documentFingerprint(source), documentFingerprint(source));
+  assert.notEqual(documentFingerprint(source), documentFingerprint([...source].reverse()));
+  assert.notEqual(documentFingerprint(source), documentFingerprint([{ text: "Қайталану 😀" }, { text: "өзгерді" }, { text: "Қайталану 😀" }, { text: "соңы" }]));
 });
 
 test("copies computed paragraph formatting while ignoring mixed alignment", () => {

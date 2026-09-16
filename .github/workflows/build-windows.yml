@@ -25,11 +25,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check
-        run: npm run typecheck
+      - name: Release checks
+        run: npm run release:check
 
-      - name: Test
-        run: npm test
+      - name: Generate SBOM
+        run: npm run sbom
+
+      - name: Verify SBOM
+        run: npm run verify:sbom
 
       - name: Build installer
         run: npm run dist:win
@@ -41,4 +44,21 @@ jobs:
         with:
           name: BankAI-Windows-x64
           path: packages/desktop-host/release/BankAI-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Verify installer
+        run: npm run verify:installer
+
+      - name: Upload installer checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: BankAI-Windows-x64-checksum
+          path: packages/desktop-host/release/BankAI-Setup-*.exe.sha256
+          if-no-files-found: error
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: BankAI-SBOM
+          path: release/sbom.cdx.json
           if-no-files-found: error

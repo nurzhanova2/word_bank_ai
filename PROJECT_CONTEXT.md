@@ -2,11 +2,11 @@
 
 ## 1. Статус снимка
 
-Этот файл первоначально описывал состояние commit `88eb5c1`; актуализирован 28 августа 2026 года после внедрения Kazakh Grammar Review v2. Текущая версия приложения — `0.6.2`. Источником истины являются исходный код, package-конфигурации, тесты, build-скрипты и workflow.
+Этот файл первоначально описывал состояние commit `88eb5c1`; актуализирован 16 сентября 2026 года после исправления доверия localhost-сертификату Word Add-in. Текущая версия приложения — `0.7.0`. Источником истины являются исходный код, package-конфигурации, тесты, build-скрипты и workflow.
 
 Проверки, выполненные при подготовке контекста:
 
-- `npm test` — успешно, 110 тестов: Add-in 23, Desktop Host 7, Local Runtime 80;
+- `npm test` — успешно, 116 тестов: Add-in 23, Desktop Host 7, Local Runtime 86;
 - `npm run typecheck` — успешно для всех четырёх workspace-пакетов;
 - live-eval корпоративной модели в рамках этого аудита не запускался, поскольку он обращается во внешний API. `docs/PROGRESS.md` заявляет ранее выполненный результат 6/6, но это не было независимо перепроверено.
 
@@ -107,7 +107,7 @@ word_bank_ai/
 
 ### `packages/contracts`
 
-- `src/index.ts` — `APP_VERSION = "0.6.2"`, action registry, apply mode, опции, API errors, health и grammar contracts.
+- `src/index.ts` — `APP_VERSION = "0.7.0"`, action registry, apply mode, опции, API errors, health и grammar contracts.
 - Компилируется в `dist` с `.d.ts` и экспортируется остальным workspace-пакетам.
 
 ### `packages/addin`
@@ -135,11 +135,11 @@ word_bank_ai/
 - `src/grammar/` — language detection, engines, orchestration и Qwen JSON contract.
 - `src/evals/` — 6 live quality cases и детерминированный evaluator.
 - `src/errors.ts` — стабильная публичная модель ошибок.
-- `src/https-options.ts` — чтение либо создание доверенного localhost-сертификата через `office-addin-dev-certs`.
+- `src/https-options.ts` — при каждом запросе server options делегирует `office-addin-dev-certs`; библиотека проверяет доверие CA в хранилище текущего пользователя и при необходимости перевыпускает/устанавливает localhost-сертификат. Нельзя заменять этот вызов только проверкой срока действия `localhost.crt`: валидный, но недоверенный сертификат блокируется Word.
 
 ### `packages/desktop-host`
 
-- `src/main.ts` — single-instance Electron app, tray, startup/shutdown и координация сервисов.
+- `src/main.ts` — single-instance Electron app, tray, startup/shutdown и координация сервисов; содержит действие tray «Исправить HTTPS-сертификат», перезапускающее runtime и предлагающее заново открыть Word.
 - `src/services/config-service.ts` — чтение/запись настроек подключения.
 - `src/services/runtime-manager.ts` — in-process HTTPS runtime и fallback в mock при ошибке конфигурации.
 - `src/services/language-tool-manager.ts` — скрытый запуск bundled Java/LanguageTool на `127.0.0.1:8081`.
@@ -157,9 +157,10 @@ word_bank_ai/
 2. Определяется каталог packaged resources и пользовательский `.env` в Electron `userData`.
 3. `LanguageToolManager` пытается запустить bundled `jre/bin/java.exe` и `languagetool-server.jar`, ожидая готовность до примерно 10 секунд.
 4. `RuntimeManager` загружает конфигурацию, создаёт LiteLLM provider. При отсутствующем ключе/ошибке выбора provider запускается mock и открывается окно настроек.
-5. HTTPS Express server слушает только `127.0.0.1:3847`, раздаёт Add-in и API.
-6. Приложение включает автозапуск текущего пользователя (`openAtLogin`, hidden).
-7. Пользователь вручную выбирает в tray «Установить дополнение в Word». В HKCU `Software\Microsoft\Office\16.0\Wef\Developer` записывается путь к manifest, затем Word запускается, если executable найден.
+5. Перед созданием HTTPS server `getLocalHttpsOptions()` вызывает `office-addin-dev-certs`, который проверяет доверие CA Windows для текущего пользователя. Если CA отсутствует или не доверен, библиотека пытается его установить; после успешного repair Word нужно полностью открыть заново.
+6. HTTPS Express server слушает только `127.0.0.1:3847`, раздаёт Add-in и API.
+7. Приложение включает автозапуск текущего пользователя (`openAtLogin`, hidden).
+8. Пользователь вручную выбирает в tray «Установить дополнение в Word». В HKCU `Software\Microsoft\Office\16.0\Wef\Developer` записывается путь к manifest, затем Word запускается, если executable найден.
 
 NSIS сам не регистрирует Add-in при install: custom install hook только завершает старый процесс. Регистрация выполняется командой tray. При uninstall соответствующее значение HKCU удаляется.
 
@@ -257,7 +258,7 @@ Desktop Host жёстко использует порт 3847. `BANK_AI_PORT` в�
 - Microsoft Office.js загружается Add-in из `https://appsforoffice.microsoft.com/lib/1/hosted/office.js`; работа UI зависит от доступности/кэша этого hosted script.
 - LanguageTool работает локально отдельным Java-процессом, не как облачный API.
 - myspell-kk работает полностью локально через `nspell`.
-- HTTPS localhost использует сертификаты `office-addin-dev-certs` в пользовательском каталоге `~/.office-addin-dev-certs`.
+- HTTPS localhost использует сертификаты `office-addin-dev-certs` в пользовательском каталоге `~/.office-addin-dev-certs`; доверие CA проверяется при старте runtime, а ручной retry доступен в tray.
 
 ## 8. Технологии и библиотеки
 
@@ -316,7 +317,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 
 - Add-in: API client, diff, individual grammar fix, OOXML paragraphs/runs/styles, Word formatting helpers и статические UI layout/accessibility contracts.
 - Desktop Host: config validation, LanguageTool lifecycle, parsing Word executable.
-- Runtime: API, registry architecture, error mapping, prompts, validators, retries, translation chunking, grammar engines, language detection, Qwen JSON parsing и eval evaluator.
+- Runtime: API, registry architecture, error mapping, prompts, validators, retries, translation chunking, grammar engines, language detection, Qwen JSON parsing, certificate trust delegation и eval evaluator.
 
 Тесты в основном unit/integration на уровне функций и Express app. Реального Microsoft Word/Office COM, Electron GUI, NSIS install/uninstall, настоящего LanguageTool процесса и end-to-end UI automation в suite нет. Единственный явно незавершённый пункт `docs/PROGRESS.md` — визуальная приёмка grammar cards внутри Word.
 
@@ -340,6 +341,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 ### Реализовано
 
 - Windows tray app, settings UI, localhost HTTPS runtime и Word manifest registration;
+- автоматическое восстановление доверия Windows к localhost CA и ручное tray-действие «Исправить HTTPS-сертификат»;
 - все 8 actions, shared registry/options/apply modes;
 - отдельные versioned prompts с общим контрактом и few-shot examples;
 - mask/restore реквизитов и абзацев, retry и result validation;
@@ -360,6 +362,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 - Максимум API — 20 000 символов; chunking есть только у translation и только на paragraph boundaries.
 - Healthcheck поверхностный; observability и audit отсутствуют.
 - Настройки локальные и plaintext; enterprise distribution/configuration отсутствуют.
+- Восстановление локального CA зависит от прав текущего пользователя и может быть запрещено корпоративной политикой Windows/Office.
 
 ### Запланировано документацией
 
@@ -373,7 +376,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 2. Порт 3847 продублирован в manifest, CORS, Desktop Host и config output. Либо сделать его константой build-time, либо полностью поддержать configurable manifest/origins/runtime.
 3. Нет process-level auth для localhost API. Для более строгой модели угроз нужен случайный per-install/session token и проверка Origin/Host.
 4. `LanguageTool-stable.zip` и latest JRE не pin/hash-validated; нужны фиксированные версии и контрольные суммы/SBOM.
-5. Отсутствует code signing installer и release publication policy.
+5. Отсутствует code signing installer и release publication policy; локальный CA исправляет доверие к `localhost`, но не заменяет коммерческую подпись EXE и централизованную публикацию Add-in.
 6. Нет E2E Word/Electron/installer тестов; статические HTML/CSS assertions не заменяют визуальную и Office-host приёмку.
 7. Grammar aggregation дедуплицирует только одинаковые диапазоны; частично пересекающиеся issues сохраняются до стадии apply/diff, где один из них может быть отброшен по порядку.
 8. Qwen review masked requisites, но один язык выбирается для всего mixed-текста.
@@ -387,11 +390,11 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 ## 14. Расхождения документации и кода
 
 - Корневой `README.md` говорит о preview «Было / Стало», но текущий UI намеренно имеет одну inline-вкладку/область «Изменения» без отдельных полных блоков.
-- Версия package-конфигураций, runtime `/health`, документации и установщика синхронизирована на `0.6.2`.
+- Версия package-конфигураций, runtime `/health`, документации и установщика синхронизирована на `0.7.0`.
 - Дерево в корневом `README.md` не показывает `packages/desktop-host`, хотя пакет является обязательной частью EXE.
 - `docs/README.md` описывает предполагаемые API Gateway, Auth, Document Processing, Audit, Monitoring и другие сервисы. В текущем коде их нет; фактическая архитектура — localhost Express внутри Electron.
 - `docs/ARCHITECTURE.md` в общем корректен, но формулировка о том, что installer должен зарегистрировать manifest, не соответствует текущей автоматике: пользователь запускает регистрацию из tray после install.
-- `docs/PROGRESS.md` утверждает 99 тестов — это подтверждено текущим запуском. Утверждение live-eval 6/6 сохранено как заявленный исторический результат, не как проверка этого аудита.
+- `docs/PROGRESS.md` и текущий запуск согласованы на 116 тестах. Утверждение live-eval 6/6 сохранено как заявленный исторический результат, не как проверка этого аудита.
 
 ## 15. Что важно знать перед изменениями
 
@@ -402,6 +405,7 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 - Не ослаблять marker validation без отдельного решения по риску реквизитов. Для summary omission разрешён намеренно, для replace-actions — нет.
 - Изменение количества абзацев в replace-action конфликтует с layout contract и style preservation. Summary — единственное текущее действие с `append` и свободной структурой.
 - Add-in должен оставаться same-origin с runtime и работать по доверенному HTTPS; Office manifest не принимает обычный HTTP localhost как текущий production-like сценарий.
+- При изменении HTTPS-кода всегда сохранять вызов `office-addin-dev-certs`: проверка даты сертификата не доказывает доверие Word к CA. После repair сертификата Word необходимо закрыть и открыть заново.
 - API key никогда не должен попадать в frontend, manifest, commit, диагностический ответ или этот контекст.
 - Перед релизом минимум запускать `npm run typecheck`, `npm test`, `npm run build`; live `npm run eval:prompts` запускать только осознанно с разрешённым API/данными. Для UI/Word-изменений нужна ручная проверка внутри реального Word.
 - При изменении версии синхронизировать root и все package versions, `APP_VERSION`, internal workspace dependency versions и документацию/installer filename.
@@ -416,3 +420,22 @@ electron-builder создаёт per-user assisted NSIS `packages/desktop-host/re
 - фактические версии LanguageTool/JRE в installer без анализа конкретного собранного artifact;
 - production telemetry, поскольку соответствующей системы в коде нет;
 - покрытие реальных банковских языковых кейсов экспертной разметкой — текущие tests/evals этого не доказывают.
+
+## 17. Рекомендуемый следующий функционал
+
+Это предложения по развитию, а не реализованные функции. Приоритет определён по текущим ограничениям кода и пользовательским сценариям.
+
+1. **Проверка всего документа и разделов.** Добавить выбор области (выделение / текущий раздел / документ), разбиение на безопасные chunks, сводный прогресс и единое применение правок.
+2. **Пользовательский словарь и исключения.** Позволить подтверждать корректные казахские термины и сохранять их локально, чтобы Hunspell больше не показывал повторные ложные кандидаты.
+3. **Пакетное принятие грамматических правок.** Фильтры по типу/уверенности, «принять только орфографию», undo одной операции и экспорт отчёта исправлений.
+4. **Глоссарий и шаблоны организации.** Управляемые локальные или корпоративные терминологические наборы для перевода и утверждённые prompt-шаблоны писем/справок.
+5. **Безопасное хранение API-ключа.** Перенести секрет из plaintext `.env` в Windows Credential Manager/DPAPI.
+6. **Корпоративное развёртывание.** Code signing, централизованное назначение Add-in через Microsoft 365, фиксированные версии JRE/LanguageTool с hash/SBOM и диагностический пакет для IT.
+7. **История без содержания документа.** Локальный metadata-only журнал: время, действие, длительность, код ошибки, версия модели и факт accept/reject — без текста и реквизитов.
+8. **Надёжность и наблюдаемость.** Readiness-check для LanguageTool/LLM, понятный экран диагностики, crash reports и контролируемое обновление версии.
+9. **Экспертный corpus для казахской грамматики.** Разметка реальных обезличенных кейсов, измерение precision/recall по категориям и controlled rollout новых правил.
+10. **Режим рецензирования.** Комментарии к правкам, сравнение версий, обработка таблиц/полей/правок Track Changes с отдельными OOXML-контрактами.
+
+## 18. Старт нового чата
+
+Готовый контекстный prompt находится в [`NEW_CHAT_PROMPT.md`](NEW_CHAT_PROMPT.md). Перед продолжением работы новый агент должен прочитать этот файл и данный `PROJECT_CONTEXT.md`, проверить `git status`, не раскрывать API-ключ и использовать TDD для изменений grammar/HTTPS/OOXML.

@@ -23,6 +23,7 @@ export interface RequisiteProtection {
 
 export interface RestoreOptions {
   requireAll: boolean;
+  allowedMarkers?: readonly string[];
 }
 
 interface RequisiteMatch {
@@ -135,7 +136,8 @@ export function restoreProtectedResult(
 ): string {
   if (containsUnprotectedRequisite(result)) throw new Error("LLM added an unprotected requisite.");
 
-  const known = new Map(protection.entries.map((entry) => [entry.placeholder, entry]));
+  const known = new Set(protection.entries.map((entry) => entry.placeholder));
+  for (const marker of options.allowedMarkers ?? []) known.add(marker);
   for (const placeholder of result.match(placeholderPattern) ?? []) {
     if (!known.has(placeholder)) throw new Error("LLM added an unknown requisite marker.");
   }

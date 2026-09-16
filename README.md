@@ -1,4 +1,4 @@
-# Bank AI for Word
+# Bank AI for Word · 0.7.0
 
 AI-помощник для редактирования выделенного текста непосредственно в Microsoft
 Word. Пользователь выбирает фрагмент документа, применяет нужное действие,
@@ -7,7 +7,7 @@ Word. Пользователь выбирает фрагмент докумен�
 
 ## Возможности MVP
 
-- работа в боковой панели Microsoft Word;
+- работа в компактной тёмной боковой панели Microsoft Word;
 - получение текущего выделения через Office.js;
 - восемь действий над текстом:
   - **Переписать** — улучшить формулировки, сохранив смысл;
@@ -18,9 +18,12 @@ Word. Пользователь выбирает фрагмент докумен�
   - **Расширить текст** — подробнее раскрыть уже имеющиеся мысли без добавления новых фактов;
   - **Изменить тон** — выбрать нейтральный, вежливый, строгий или дипломатичный тон;
   - **Краткое содержание** — выделить основные мысли, факты, решения и сроки, затем добавить блок `РЕЗЮМЕ:` после исходного текста;
-- предпросмотр результата в формате «Было / Стало»;
+- обработка выделения и всего документа с прогрессом, Retry/Cancel и безопасным Preview;
+- отдельный whole-document Summary flow: map/reduce, Preview, Add/Reject;
+- предпросмотр изменений на уровне абзацев до применения;
 - применение результата к выделенному фрагменту кнопкой **Применить**;
 - отклонение результата без изменения документа;
+- блокировка Apply/Add, если документ был изменён после создания Preview;
 - понятные состояния загрузки и сообщения об ошибках;
 - локальный backend, доступный только на компьютере пользователя;
 - OpenAI-совместимый LiteLLM Chat Completions API и демонстрационный mock-режим без внешних запросов.
@@ -56,7 +59,8 @@ word_bank_ai/
 ├── packages/
 │   ├── addin/          # интерфейс Word Add-in и Office.js
 │   ├── contracts/      # общие TypeScript-контракты API
-│   └── local-runtime/  # локальный HTTPS API и AI-провайдеры
+│   ├── local-runtime/  # локальный HTTPS API и AI-провайдеры
+│   └── desktop-host/   # Windows tray app и NSIS installer
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   └── WINDOWS.md
@@ -187,6 +191,10 @@ npm test           # запуск тестов
 npm start          # запуск собранного локального runtime
 npm run desktop    # запуск tray-приложения для разработки
 npm run dist:win   # сборка Windows NSIS installer
+npm run release:check # полный release gate
+npm run sbom       # CycloneDX SBOM
+npm run verify:sbom # проверка SBOM
+npm run verify:installer # проверка installer и checksum
 npm run eval:kazakh # A/B evaluation казахских grammar prompts (внешний LLM)
 ```
 
@@ -196,7 +204,7 @@ npm run eval:kazakh # A/B evaluation казахских grammar prompts (вне�
 После успешной сборки установщик находится в:
 
 ```text
-packages/desktop-host/release/BankAI-Setup-0.6.2.exe
+packages/desktop-host/release/BankAI-Setup-0.7.0.exe
 ```
 
 ## API MVP

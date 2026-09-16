@@ -99,7 +99,54 @@ export interface WordAdapter {
   appendAfterSelection(text: string, prefix?: string, sourceOoxml?: string): Promise<void>;
 }
 
+export interface WordDocumentParagraph { id: string; index: number; text: string; ooxml: string }
+export interface WordDocumentSnapshot { scope: "document"; text: string; fingerprint: string; paragraphs: WordDocumentParagraph[] }
+export type UnsupportedWordStructure = "table" | "field" | "contentControl" | "trackedRevision";
+export function detectUnsupportedWordStructures(ooxml: string): UnsupportedWordStructure[] {
+  const detected: UnsupportedWordStructure[] = [];
+  if (/<w:tbl(?:\s|>)/iu.test(ooxml)) detected.push("table");
+  if (/<w:(?:fldChar|instrText|fldSimple)(?:\s|>)/iu.test(ooxml)) detected.push("field");
+  if (/<w:sdt(?:\s|>)/iu.test(ooxml)) detected.push("contentControl");
+  if (/<w:(?:ins|del|moveFrom|moveTo|rPrChange|pPrChange)(?:\s|>)/iu.test(ooxml)) detected.push("trackedRevision");
+  return detected;
+}
+export function documentFingerprint(paragraphs: readonly Pick<WordDocumentParagraph, "text">[]): string {
+  let hash = 2166136261; for (const paragraph of paragraphs) for (const char of `${paragraph.text}\u001f`) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(16);
+}
+
 export class OfficeWordAdapter implements WordAdapter {
+  async appendDocumentSummary(snapshot: WordDocumentSnapshot, summary: string): Promise<void> {
+    const current = await this.getDocumentSnapshot();
+    if (current.fingerprint !== snapshot.fingerprint) throw new Error("Документ изменился после начала обработки. Запустите создание резюме заново.");
+    await Word.run(async (context) => { const body = context.document.body; body.insertText(`\n\nРЕЗЮМЕ:\n${summary}`, Word.InsertLocation.end); await context.sync(); });
+  }
+  async getDocumentSnapshot(): Promise<WordDocumentSnapshot> {
+    return Word.run(async (context) => {
+      const body = context.document.body; const bodyOoxml = body.getOoxml(); const paragraphs = body.paragraphs; paragraphs.load("items"); await context.sync();
+      if (detectUnsupportedWordStructures(bodyOoxml.value).length > 0) throw new Error("Документ содержит элементы, которые пока нельзя безопасно обработать целиком. Используйте обработку выделенного текста.");
+      const ooxml = paragraphs.items.map((paragraph) => paragraph.getOoxml());
+      for (const paragraph of paragraphs.items) paragraph.load("text");
+      await context.sync();
+      const values = paragraphs.items.map((paragraph, index) => ({ id: `p${index}`, index, text: paragraph.text, ooxml: ooxml[index]!.value }));
+      return { scope: "document", text: values.map((value) => value.text).join("\n"), fingerprint: documentFingerprint(values), paragraphs: values };
+    });
+  }
+  async applyDocumentSnapshot(snapshot: WordDocumentSnapshot, results: readonly { index: number; original: string; result: string; changed: boolean }[]): Promise<void> {
+    const current = await this.getDocumentSnapshot();
+    if (current.fingerprint !== snapshot.fingerprint) throw new Error("Документ изменился после начала обработки. Запустите обработку заново.");
+    await Word.run(async (context) => {
+      const paragraphs = context.document.body.paragraphs; paragraphs.load("items"); await context.sync();
+      for (const result of [...results].filter((item) => item.changed).sort((a, b) => b.index - a.index)) {
+        const paragraph = paragraphs.items[result.index];
+        if (!paragraph || snapshot.paragraphs[result.index]?.text !== result.original) throw new Error("Документ изменился после начала обработки. Запустите обработку заново.");
+        const formatted = replaceParagraphTextInOoxml(snapshot.paragraphs[result.index]!.ooxml, result.result);
+        if (!formatted) throw new Error("Невозможно безопасно сохранить структуру абзаца.");
+        paragraph.insertOoxml(formatted, Word.InsertLocation.replace);
+      }
+      await context.sync();
+    });
+  }
   async getSelectedContent(): Promise<{ text: string; ooxml: string }> {
     return Word.run(async (context) => {
       const range = context.document.getSelection();

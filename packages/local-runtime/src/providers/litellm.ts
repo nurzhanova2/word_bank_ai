@@ -11,9 +11,13 @@ export class LiteLlmCompletionProvider implements CompletionProvider {
   readonly name: string;
   private readonly client: OpenAI;
   private readonly model: string;
+  private readonly baseURL: string;
+  private readonly apiKey: string;
 
   constructor(options: { apiKey: string; baseURL: string; model: string }) {
     this.model = options.model;
+    this.baseURL = options.baseURL.replace(/\/$/u, "");
+    this.apiKey = options.apiKey;
     this.name = `llm:${options.model}`;
     this.client = new OpenAI({
       apiKey: options.apiKey,
@@ -21,6 +25,15 @@ export class LiteLlmCompletionProvider implements CompletionProvider {
       timeout: 45_000,
       maxRetries: 2
     });
+  }
+
+  async probeReadiness(): Promise<"ok" | "unavailable" | "timeout" | "unknown"> {
+    try {
+      const response = await fetch(`${this.baseURL}/models`, { headers: { Authorization: `Bearer ${this.apiKey}` }, signal: AbortSignal.timeout(4_000) });
+      return response.ok ? "ok" : "unavailable";
+    } catch (error) {
+      return error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "unavailable";
+    }
   }
 
   async complete(input: CompletionRequest): Promise<string> {

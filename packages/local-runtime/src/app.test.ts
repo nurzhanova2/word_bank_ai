@@ -14,7 +14,7 @@ test("health exposes the current application version", async () => {
     const port = (server.address() as AddressInfo).port;
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     const body = await response.json() as { version: string };
-    assert.equal(body.version, "0.6.2");
+    assert.equal(body.version, "0.7.0");
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -105,4 +105,33 @@ test("grammar API returns detected language, individual issues and corrected tex
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
+});
+
+test("protected API requires the runtime session and rejects an untrusted origin", async () => {
+  const server = createApp(new MockAiProvider(), undefined, undefined, { sessionToken: "test-session" }).listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const url = `http://127.0.0.1:${port}/api/v1/transform`;
+    const payload = JSON.stringify({ action: "rewrite", text: "Текст" });
+    const missing = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: payload });
+    assert.equal(missing.status, 401);
+    const wrongOrigin = await fetch(url, { method: "POST", headers: { "content-type": "application/json", origin: "https://example.test", "x-bank-ai-session": "test-session" }, body: payload });
+    assert.equal(wrongOrigin.status, 403);
+    const accepted = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-bank-ai-session": "test-session" }, body: payload });
+    assert.equal(accepted.status, 200);
+  } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+});
+
+test("diagnostics omit session credentials and unknown API GET is JSON 404", async () => {
+  const server = createApp(new MockAiProvider(), undefined, undefined, { sessionToken: "secret-session", diagnostics: { languageTool: { status: "unavailable" } } }).listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const diagnostics = await (await fetch(`http://127.0.0.1:${port}/api/v1/diagnostics`, { headers: { "x-bank-ai-session": "secret-session" } })).text();
+    assert.doesNotMatch(diagnostics, /secret-session/u);
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1/missing`, { headers: { "x-bank-ai-session": "secret-session" } });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json() as { error: { code: string } }).error.code, "NOT_FOUND");
+  } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });

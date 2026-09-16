@@ -11,6 +11,7 @@ export interface GrammarReviewRequest {
 export interface AiProvider {
   readonly name: string;
   transform(action: TransformAction, text: string, options?: TransformOptions): Promise<string>;
+  probeReadiness?(): Promise<"ok" | "unavailable" | "timeout" | "unknown">;
   completeGrammarReview?(request: GrammarReviewRequest): Promise<string>;
 }
 
@@ -24,4 +25,5 @@ export interface CompletionRequest {
 export interface CompletionProvider {
   readonly name: string;
   complete(request: CompletionRequest): Promise<string>;
+  probeReadiness?(): Promise<"ok" | "unavailable" | "timeout" | "unknown">;
 }

@@ -9,8 +9,8 @@ export function registerSettingsIpc(options: {
   runtime: RuntimeManager;
   closeWindow: () => void;
 }): void {
-  options.ipcMain.handle("settings:load", () => {
-    const settings = options.config.read();
+  options.ipcMain.handle("settings:load", async () => {
+    const settings = await options.config.read();
     return { hasApiKey: settings.apiKey.length > 0, apiBase: settings.apiBase, model: settings.model };
   });
 
@@ -21,7 +21,7 @@ export function registerSettingsIpc(options: {
       apiKey: typeof values.apiKey === "string" ? values.apiKey : "",
       apiBase: typeof values.apiBase === "string" ? values.apiBase : "",
       model: typeof values.model === "string" ? values.model : ""
-    }, options.config.read());
+    }, await options.config.read());
 
     try {
       await new OpenAiProvider({ apiKey: settings.apiKey, baseURL: settings.apiBase, model: settings.model })
@@ -29,7 +29,7 @@ export function registerSettingsIpc(options: {
     } catch {
       throw new Error("Не удалось подключиться. Проверьте API-ключ, адрес сервера и корпоративную сеть.");
     }
-    options.config.write(settings);
+    await options.config.write(settings);
     const state = await options.runtime.restart();
     if (state.status !== "работает" || state.provider.startsWith("mock")) {
       throw new Error("Настройки сохранены, но подключение не запустилось.");

@@ -1,4 +1,12 @@
-export const APP_VERSION = "0.6.2";
+export const APP_VERSION = "0.7.0";
+
+export const documentScopes = ["selection", "section", "document"] as const;
+export type DocumentScope = (typeof documentScopes)[number];
+export const documentScopeDefinitions = [
+  { id: "selection", label: "Выделение" },
+  { id: "section", label: "Текущий раздел" },
+  { id: "document", label: "Весь документ" }
+] as const satisfies readonly { id: DocumentScope; label: string }[];
 
 export const targetLanguages = ["ru", "kk", "en"] as const;
 export type TargetLanguage = (typeof targetLanguages)[number];

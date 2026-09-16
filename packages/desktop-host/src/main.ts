@@ -11,10 +11,12 @@ import {
   Menu,
   nativeImage,
   shell,
+  safeStorage,
   Tray
 } from "electron";
 import { registerSettingsIpc } from "./ipc/settings-ipc.js";
 import { ConfigService } from "./services/config-service.js";
+import { createFileSecretStorage, createSafeStorageSecretStore } from "./services/secret-store.js";
 import { RuntimeManager, type RuntimeState } from "./services/runtime-manager.js";
 import { LanguageToolManager } from "./services/language-tool-manager.js";
 import { WordAddInInstaller } from "./services/word-addin-installer.js";
@@ -78,6 +80,7 @@ function updateTrayMenu(state: RuntimeState = runtime?.state ?? { status: "ос�
     { label: "Установить дополнение в Word", click: () => void installWordAddIn() },
     { label: "Удалить дополнение из Word", click: () => void removeWordAddIn() },
     { label: "Открыть настройки", click: () => void openSettings() },
+    { label: "Исправить HTTPS-сертификат", click: () => void repairHttpsCertificate() },
     {
       label: "Открыть диагностику",
       enabled: state.status === "работает",
@@ -88,6 +91,26 @@ function updateTrayMenu(state: RuntimeState = runtime?.state ?? { status: "ос�
     { label: "Перезапустить Bank AI", click: () => { app.relaunch(); app.exit(0); } },
     { label: "Выход", click: () => app.quit() }
   ]));
+}
+
+async function repairHttpsCertificate(): Promise<void> {
+  if (!runtime) return;
+  const state = await runtime.restart();
+  if (state.status === "работает") {
+    await dialog.showMessageBox({
+      type: "info",
+      title: "HTTPS-сертификат исправлен",
+      message: "Доверие к локальному сертификату проверено и runtime перезапущен.",
+      detail: "Полностью закройте и снова откройте Microsoft Word, затем откройте Bank AI."
+    });
+    return;
+  }
+  await dialog.showMessageBox({
+    type: "error",
+    title: "Не удалось исправить HTTPS-сертификат",
+    message: state.runtimeError?.message ?? "Локальный HTTPS runtime не запустился.",
+    detail: "Убедитесь, что политика организации разрешает установку сертификатов для текущего пользователя, либо обратитесь в IT."
+  });
 }
 
 async function installWordAddIn(): Promise<void> {
@@ -135,7 +158,7 @@ async function showStartupProblems(state: RuntimeState): Promise<void> {
       type: "error",
       title: "Bank AI не запустился",
       message: state.runtimeError.message,
-      detail: "Разрешите установку локального HTTPS-сертификата и перезапустите приложение."
+      detail: "В меню значка Bank AI в системном трее выберите «Исправить HTTPS-сертификат». Затем полностью закройте и снова откройте Word."
     });
   }
 }
@@ -143,7 +166,7 @@ async function showStartupProblems(state: RuntimeState): Promise<void> {
 async function bootstrap(): Promise<void> {
   tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 }));
   tray.on("double-click", () => void shell.openExternal(`https://localhost:${PORT}/health`));
-  const config = new ConfigService(configPath());
+  const config = new ConfigService(configPath(), createSafeStorageSecretStore(safeStorage, createFileSecretStorage(`${configPath()}.secrets`)));
   const grammarPath = resourcePath("grammar", "vendor/grammar");
   process.env.KAZAKH_HUNSPELL_PATH = path.join(grammarPath, "hunspell-kk");
   languageTool = new LanguageToolManager(grammarPath);

@@ -7,7 +7,7 @@
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   </head>
   <body>
-    <main class="shell" data-layout="workbench">
+    <main class="shell" data-layout="document-tools">
       <header class="app-bar">
         <div class="brand-lockup">
           <img class="brand-icon" src="/assets/icon.svg" alt="" width="32" height="32" />
@@ -27,13 +27,36 @@
           <p id="status" class="status" role="status" aria-live="polite">Выделите текст и выберите действие.</p>
         </section>
 
+        <section class="scope-panel" aria-label="Область обработки">
+          <div class="scope-tabs" role="tablist" aria-label="Область обработки">
+            <button class="scope-tab is-active" type="button" role="tab" aria-selected="true" data-document-scope="selection">Выделенный текст</button>
+            <button class="scope-tab" type="button" role="tab" aria-selected="false" data-document-scope="document">Весь документ</button>
+          </div>
+          <label class="visually-hidden" for="document-scope">Область</label>
+          <select id="document-scope" class="scope-native-select">
+            <option value="selection">Выделение</option>
+            <option value="section" disabled>Текущий раздел — недоступно</option>
+            <option value="document">Весь документ</option>
+          </select>
+          <p id="scope-warning" class="hint" hidden>Содержимое документа будет обработано настроенным AI-провайдером.</p>
+        </section>
+
+        <section class="style-sample" aria-labelledby="style-sample-title">
+          <h2 id="style-sample-title">Стиль документа</h2>
+          <div class="sample-dropzone">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 1 1 .7-7.94A5.5 5.5 0 0 1 18.4 12 3.5 3.5 0 1 1 18 19h-3M12 14V4m0 0L8.5 7.5M12 4l3.5 3.5" /></svg>
+            <strong>Загрузите DOCX или PDF образец</strong>
+            <p>Bank AI проанализирует стили, отступы, таблицы и оформление</p>
+            <span class="sample-upload-button" aria-hidden="true">Выбрать файл</span>
+          </div>
+          <p class="my-styles">Мои стили <span aria-hidden="true">⌄</span></p>
+        </section>
+
         <section class="workspace" aria-labelledby="actions-title">
           <header class="workspace-heading">
             <div>
               <h1 id="actions-title">Работа с текстом</h1>
-              <p>Выберите действие для выделенного фрагмента.</p>
             </div>
-            <span class="selection-hint">Word</span>
           </header>
           <div id="actions" class="actions" aria-label="AI-действия"></div>
 
@@ -63,6 +86,8 @@
           <div id="grammar-meta" class="grammar-meta" hidden></div>
           <div id="grammar-issues" class="grammar-issues" hidden></div>
           <div class="decision-row">
+            <button id="cancel-document" class="secondary" hidden>Отменить</button>
+            <button id="retry-document" class="secondary" hidden>Повторить</button>
             <button id="reject" class="secondary" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M5.5 9A8 8 0 1 1 5 16" /></svg>
               Отклонить

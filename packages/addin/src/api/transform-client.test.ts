@@ -5,15 +5,21 @@ import { checkGrammar, TransformApiError, transformText } from "./transform-clie
 
 const request: TransformRequest = { action: "rewrite", text: "Исходный текст" };
 
-test("transform client returns a typed successful response", async () => {
-  const fetcher: typeof fetch = async () => new Response(JSON.stringify({
+test("transform client bootstraps a same-origin session before a typed request", async () => {
+  const calls: string[] = [];
+  const fetcher: typeof fetch = async (url) => {
+    calls.push(String(url));
+    if (url === "/session") return new Response(JSON.stringify({ token: "test-session" }), { status: 200 });
+    return new Response(JSON.stringify({
     operationId: "op-1",
     result: "Результат",
     provider: "test",
     durationMs: 12
-  }), { status: 200, headers: { "content-type": "application/json" } });
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
 
   assert.equal((await transformText(request, fetcher)).result, "Результат");
+  assert.deepEqual(calls, ["/session", "/api/v1/transform"]);
 });
 
 test("transform client preserves API error code and retryability", async () => {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CompletionProvider, CompletionRequest } from "./providers/types.js";
 import { TransformService } from "./services/transform-service.js";
+import { createSliceMarkerContract } from "./document/slice-markers.js";
 
 function protectedSource(request: CompletionRequest): string {
   const match = request.user.match(/<source>\n([\s\S]*)\n<\/source>/u);
@@ -115,6 +116,24 @@ test("transform service retries when the model removes a paragraph boundary", as
   const source = "Первый абзац.\rВторой абзац.";
 
   assert.equal(await new TransformService(completionProvider).transform("rewrite", source), source);
+  assert.equal(attempts, 2);
+});
+
+test("transform service retries when a long-paragraph target marker is invalid", async () => {
+  let attempts = 0;
+  const contract = createSliceMarkerContract("Контекст до. Целевой текст. Контекст после.", 13, 28, 0);
+  const completionProvider: CompletionProvider = {
+    name: "slice-marker-retry",
+    async complete(request) {
+      attempts += 1;
+      const source = protectedSource(request);
+      return attempts === 1 ? source.replace(contract.startMarker, "") : source;
+    }
+  };
+
+  const result = await new TransformService(completionProvider).transform("rewrite", contract.prompt);
+  assert.match(result, new RegExp(contract.startMarker.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+  assert.match(result, new RegExp(contract.endMarker.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
   assert.equal(attempts, 2);
 });
 
